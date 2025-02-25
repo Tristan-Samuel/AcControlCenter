@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>User Management</h2>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">Users</h4>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Room Number</th>
+                            <th>Account Type</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>{{ user.room_number if user.room_number else 'N/A' }}</td>
+                            <td>
+                                <span class="badge {% if user.is_admin %}bg-danger{% else %}bg-primary{% endif %}">
+                                    {{ 'Admin' if user.is_admin else 'User' }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge {% if user.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {{ 'Active' if user.is_active else 'Inactive' }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#editUserModal{{ user.id }}">
+                                        <i data-feather="edit-2"></i>
+                                    </button>
+                                    <form action="{{ url_for('admin.toggle_user_status', user_id=user.id) }}" 
+                                          method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning">
+                                            <i data-feather="{{ 'unlock' if not user.is_active else 'lock' }}"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+
+                        <!-- Edit User Modal -->
+                        <div class="modal fade" id="editUserModal{{ user.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form action="{{ url_for('admin.update_user', user_id=user.id) }}" method="POST">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Edit User: {{ user.username }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label for="email{{ user.id }}" class="form-label">Email</label>
+                                                <input type="email" class="form-control" id="email{{ user.id }}" 
+                                                       name="email" value="{{ user.email }}" required>
+                                            </div>
+                                            {% if not user.is_admin %}
+                                            <div class="mb-3">
+                                                <label for="room_number{{ user.id }}" class="form-label">Room Number</label>
+                                                <input type="text" class="form-control" id="room_number{{ user.id }}" 
+                                                       name="room_number" value="{{ user.room_number }}">
+                                            </div>
+                                            {% endif %}
+                                            <div class="mb-3">
+                                                <label for="new_password{{ user.id }}" class="form-label">New Password (optional)</label>
+                                                <input type="password" class="form-control" id="new_password{{ user.id }}" 
+                                                       name="new_password">
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

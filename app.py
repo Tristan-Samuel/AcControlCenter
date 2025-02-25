@@ -34,11 +34,16 @@ app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 # Initialize extensions
 db.init_app(app)
 login_manager.init_app(app)
-login_manager.login_view = 'login'
+login_manager.login_view = 'main.login'  # Updated to use blueprint route
 mail.init_app(app)
 
-# Import routes after app initialization
-from routes import *  # noqa
-
 with app.app_context():
+    # Import models before create_all
+    import models  # noqa: F401
     db.create_all()
+
+    # Import and register blueprints after db initialization
+    from routes.admin import admin
+    from routes.main import main
+    app.register_blueprint(admin)
+    app.register_blueprint(main)
