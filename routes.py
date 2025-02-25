@@ -116,10 +116,14 @@ def admin_dashboard():
         try:
             if current_user.is_admin and force_update:
                 # Admin is forcing settings
-                settings.max_temperature = float(request.form['max_temperature'])
-                settings.auto_shutoff = 'auto_shutoff' in request.form
-                settings.email_notifications = 'email_notifications' in request.form
-                flash('Settings enforced by admin!', 'success')
+                if 'settings_locked' in request.form:
+                    settings.settings_locked = request.form['settings_locked'] == '1'
+                    flash('Settings access updated!', 'success')
+                else:
+                    settings.max_temperature = float(request.form['max_temperature'])
+                    settings.auto_shutoff = 'auto_shutoff' in request.form
+                    settings.email_notifications = 'email_notifications' in request.form
+                    flash('Settings enforced by admin!', 'success')
             elif current_user.room_number:
                 # Allow user to update settings if not forced
                 settings.max_temperature = float(request.form['max_temperature'])

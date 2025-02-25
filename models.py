@@ -35,6 +35,7 @@ class ACSettings(db.Model):
     max_temperature = db.Column(db.Float, default=24.0)
     auto_shutoff = db.Column(db.Boolean, default=True)
     email_notifications = db.Column(db.Boolean, default=True)
+    settings_locked = db.Column(db.Boolean, default=False)
 
     # Relationship back to User
     user = db.relationship("User", backref="acsettings_user", uselist=False)
