@@ -112,7 +112,7 @@ def register():
             flash('Passwords do not match')
             return render_template('register.html')
 
-        # Check if username or email already exists
+        # Check if username, email, or room number already exists
         if User.query.filter_by(username=request.form['username']).first():
             flash('Username already exists')
             return render_template('register.html')
@@ -121,21 +121,27 @@ def register():
             flash('Email already exists')
             return render_template('register.html')
 
-        # Create new user
-        user = User(
-            username=request.form['username'],
-            email=request.form['email'],
-            room_number=request.form['room_number'],
-            is_admin='is_admin' in request.form
-        )
-        user.set_password(request.form['password'])
+        # Only check room number uniqueness for non-admin users
+        if not 'is_admin' in request.form:
+            if User.query.filter_by(room_number=request.form['room_number']).first():
+                flash('Room number already registered')
+                return render_template('register.html')
 
+        # Create new user
         try:
+            user = User(
+                username=request.form['username'],
+                email=request.form['email'],
+                room_number=request.form['room_number'] if not 'is_admin' in request.form else None,
+                is_admin='is_admin' in request.form
+            )
+            user.set_password(request.form['password'])
+
             db.session.add(user)
             db.session.commit()
 
             # Create default AC settings for the room
-            if not user.is_admin:
+            if not user.is_admin and user.room_number:
                 settings = ACSettings(room_number=user.room_number)
                 db.session.add(settings)
                 db.session.commit()
@@ -145,6 +151,6 @@ def register():
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"Registration error: {str(e)}")
-            flash('Registration failed. Please try again.')
+            flash('An error occurred during registration. Please try again.')
 
     return render_template('register.html')

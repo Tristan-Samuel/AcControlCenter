@@ -20,6 +20,7 @@
                     <div class="mb-3">
                         <label for="room_number" class="form-label">Room Number</label>
                         <input type="text" class="form-control" id="room_number" name="room_number" required>
+                        <small class="form-text text-muted">Not required for admin accounts</small>
                     </div>
                     <div class="mb-3">
                         <label for="password" class="form-label">Password</label>
@@ -39,4 +40,11 @@
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('is_admin').addEventListener('change', function() {
+    const roomNumberInput = document.getElementById('room_number');
+    roomNumberInput.required = !this.checked;
+});
+</script>
 {% endblock %}

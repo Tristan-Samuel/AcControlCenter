@@ -9,7 +9,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
     is_admin = db.Column(db.Boolean, default=False)
-    room_number = db.Column(db.String(10), unique=True)
+    room_number = db.Column(db.String(10), unique=True, nullable=True)  # Made nullable for admin users
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
