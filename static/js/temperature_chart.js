@@ -3,7 +3,7 @@ const ctx = document.getElementById('temperatureChart').getContext('2d');
 const temperatureChart = new Chart(ctx, {
     type: 'line',
     data: {
-        labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+        labels: [],
         datasets: [{
             label: 'Temperature °C',
             data: [],
@@ -23,13 +23,38 @@ const temperatureChart = new Chart(ctx, {
     }
 });
 
-// Update chart with mock data
-function updateChart() {
-    const newData = Array.from({length: 24}, () => 20 + Math.random() * 8);
-    temperatureChart.data.datasets[0].data = newData;
-    temperatureChart.update();
+let temperatures = [];
+let timestamps = [];
+
+// Update chart with real data
+async function updateChart() {
+    try {
+        const roomNumber = document.querySelector('[data-room-number]').dataset.roomNumber;
+        const response = await fetch(`/api/temperature/${roomNumber}`);
+        const data = await response.json();
+
+        // Add new data point
+        temperatures.push(data.temperature);
+        timestamps.push(new Date(data.timestamp).toLocaleTimeString());
+
+        // Keep only last 24 points
+        if (temperatures.length > 24) {
+            temperatures.shift();
+            timestamps.shift();
+        }
+
+        temperatureChart.data.labels = timestamps;
+        temperatureChart.data.datasets[0].data = temperatures;
+        temperatureChart.update();
+
+        // Update current temperature display
+        document.querySelector('[data-current-temp]').textContent = 
+            `${data.temperature.toFixed(1)}°C`;
+    } catch (error) {
+        console.error('Error updating temperature:', error);
+    }
 }
 
-// Update every 5 minutes
-setInterval(updateChart, 300000);
+// Update every minute
+setInterval(updateChart, 60000);
 updateChart(); // Initial update

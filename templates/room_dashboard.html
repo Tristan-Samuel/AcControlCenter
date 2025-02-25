@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row">
+<div class="row" data-room-number="{{ current_user.room_number }}">
     <div class="col-md-6">
         <div class="card mb-4">
             <div class="card-header">
@@ -10,7 +10,7 @@
             <div class="card-body">
                 <div class="d-flex align-items-center mb-3">
                     <i data-feather="thermometer" class="me-2"></i>
-                    <span>Current Temperature: {{ "%.1f"|format(current_temp) }}°C</span>
+                    <span data-current-temp>{{ "%.1f"|format(current_temp) }}°C</span>
                 </div>
                 <canvas id="temperatureChart"></canvas>
             </div>
@@ -23,7 +23,7 @@
                 <h4>AC Settings</h4>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('update_settings') }}">
+                <form method="POST" action="{{ url_for('update_settings') }}" id="settingsForm">
                     <div class="mb-3">
                         <label for="max_temperature" class="form-label">Maximum Temperature (°C)</label>
                         <input type="number" class="form-control" id="max_temperature" name="max_temperature"
@@ -39,7 +39,10 @@
                                {% if settings.email_notifications %}checked{% endif %}>
                         <label class="form-check-label" for="email_notifications">Email notifications</label>
                     </div>
-                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                    <button type="submit" class="btn btn-primary" id="saveSettingsBtn">
+                        <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                        <span>Save Settings</span>
+                    </button>
                 </form>
             </div>
         </div>
@@ -59,7 +62,7 @@
                                 <th>Temperature</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="eventsTable">
                             {% for event in events %}
                             <tr>
                                 <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
@@ -75,6 +78,15 @@
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('settingsForm').addEventListener('submit', function(e) {
+    const button = document.getElementById('saveSettingsBtn');
+    const spinner = button.querySelector('.spinner-border');
+    button.disabled = true;
+    spinner.classList.remove('d-none');
+});
+</script>
 {% endblock %}
 
 {% block scripts %}

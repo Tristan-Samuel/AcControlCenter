@@ -4,6 +4,7 @@ from flask_mail import Message
 from app import app, db, login_manager, mail
 from models import User, ACSettings, WindowEvent
 import random  # For mock temperature data
+from datetime import datetime
 
 @login_manager.user_loader
 def load_user(id):
@@ -45,19 +46,19 @@ def logout():
 def room_dashboard():
     if current_user.is_admin:
         return redirect(url_for('admin_dashboard'))
-    
+
     settings = ACSettings.query.filter_by(room_number=current_user.room_number).first()
     if not settings:
         settings = ACSettings(room_number=current_user.room_number)
         db.session.add(settings)
         db.session.commit()
-    
+
     events = WindowEvent.query.filter_by(room_number=current_user.room_number)\
         .order_by(WindowEvent.timestamp.desc()).limit(10).all()
-    
+
     # Mock current temperature
     current_temp = random.uniform(20.0, 28.0)
-    
+
     return render_template('room_dashboard.html',
                          settings=settings,
                          events=events,
@@ -68,18 +69,33 @@ def room_dashboard():
 def admin_dashboard():
     if not current_user.is_admin:
         return redirect(url_for('room_dashboard'))
-    
+
     rooms = User.query.filter_by(is_admin=False).all()
     return render_template('admin_dashboard.html', rooms=rooms)
 
 @app.route('/update_settings', methods=['POST'])
 @login_required
 def update_settings():
+    if not current_user.room_number:
+        flash('Only room users can update settings')
+        return redirect(url_for('admin_dashboard'))
+
     settings = ACSettings.query.filter_by(room_number=current_user.room_number).first()
-    settings.max_temperature = float(request.form['max_temperature'])
-    settings.auto_shutoff = 'auto_shutoff' in request.form
-    settings.email_notifications = 'email_notifications' in request.form
-    db.session.commit()
+    if not settings:
+        settings = ACSettings(room_number=current_user.room_number)
+        db.session.add(settings)
+
+    try:
+        settings.max_temperature = float(request.form['max_temperature'])
+        settings.auto_shutoff = 'auto_shutoff' in request.form
+        settings.email_notifications = 'email_notifications' in request.form
+        db.session.commit()
+        flash('Settings updated successfully!', 'success')
+    except Exception as e:
+        app.logger.error(f"Settings update error: {str(e)}")
+        flash('Error updating settings. Please try again.', 'error')
+        db.session.rollback()
+
     return redirect(url_for('room_dashboard'))
 
 @app.route('/log_window_event', methods=['POST'])
@@ -93,10 +109,10 @@ def log_window_event():
     )
     db.session.add(event)
     db.session.commit()
-    
+
     if event.window_state == 'opened' and event.ac_state == 'on':
         send_notification(current_user.email)
-    
+
     return jsonify({'status': 'success'})
 
 def send_notification(email):
@@ -158,3 +174,40 @@ def register():
             flash('An error occurred during registration. Please try again.')
 
     return render_template('register.html')
+
+
+@app.route('/api/temperature/<room_number>')
+@login_required
+def get_temperature(room_number):
+    if not current_user.is_admin and current_user.room_number != room_number:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # For now, generate mock temperature data
+    # This will be replaced with actual sensor data from Raspberry Pi
+    current_temp = random.uniform(20.0, 28.0)
+    return jsonify({
+        'temperature': round(current_temp, 1),
+        'timestamp': datetime.utcnow().isoformat()
+    })
+
+@app.route('/api/room_status/<room_number>')
+@login_required
+def get_room_status(room_number):
+    if not current_user.is_admin and current_user.room_number != room_number:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    settings = ACSettings.query.filter_by(room_number=room_number).first()
+    if not settings:
+        return jsonify({'error': 'Room not found'}), 404
+
+    # Get latest window event
+    latest_event = WindowEvent.query.filter_by(room_number=room_number)\
+        .order_by(WindowEvent.timestamp.desc()).first()
+
+    return jsonify({
+        'max_temperature': settings.max_temperature,
+        'auto_shutoff': settings.auto_shutoff,
+        'email_notifications': settings.email_notifications,
+        'window_state': latest_event.window_state if latest_event else 'unknown',
+        'ac_state': latest_event.ac_state if latest_event else 'unknown'
+    })
