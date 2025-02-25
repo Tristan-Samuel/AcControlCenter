@@ -11,13 +11,13 @@ logging.basicConfig(level=logging.DEBUG)
 
 class Base(DeclarativeBase):
     pass
-
-db = SQLAlchemy(model_class=Base)
-login_manager = LoginManager()
+ 
+db: SQLAlchemy = SQLAlchemy(model_class=Base)
+login_manager: LoginManager = LoginManager()
 mail = Mail()
 
 # Create the app
-app = Flask(__name__)
+app: Flask = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "dev_key")
 
 # Configure database
@@ -34,7 +34,7 @@ app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 # Initialize extensions
 db.init_app(app)
 login_manager.init_app(app)
-login_manager.login_view = 'login'
+login_manager.login_view = "login" # type: ignore
 mail.init_app(app)
 
 # Import routes after app initialization

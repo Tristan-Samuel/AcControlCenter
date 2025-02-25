@@ -12,6 +12,9 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
     room_number = db.Column(db.String(10), unique=True, nullable=True)  # Made nullable for admin users
 
+    # Create the relationship to ACSettings
+    acsettings = db.relationship("ACSettings", backref="acsettings_user", uselist=False)  # uselist=False for one-to-one
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
@@ -32,6 +35,9 @@ class ACSettings(db.Model):
     max_temperature = db.Column(db.Float, default=24.0)
     auto_shutoff = db.Column(db.Boolean, default=True)
     email_notifications = db.Column(db.Boolean, default=True)
+
+    # Relationship back to User
+    user = db.relationship("User", backref="acsettings_user", uselist=False)
 
 class WindowEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)

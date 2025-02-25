@@ -87,6 +87,7 @@
 <script>
 ['passwordForm', 'pinForm'].forEach(formId => {
     document.getElementById(formId).addEventListener('submit', function(e) {
+        Console.Log("Clicked button")
         const button = this.querySelector('button[type="submit"]');
         const spinner = button.querySelector('.spinner-border');
         const buttonText = button.querySelector('.button-text');
