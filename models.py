@@ -8,6 +8,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(64), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
+    pin = db.Column(db.String(256))  # Store hashed PIN
     is_admin = db.Column(db.Boolean, default=False)
     room_number = db.Column(db.String(10), unique=True, nullable=True)  # Made nullable for admin users
 
@@ -16,6 +17,14 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def set_pin(self, pin):
+        self.pin = generate_password_hash(pin)
+
+    def check_pin(self, pin):
+        if not self.pin:
+            return False
+        return check_password_hash(self.pin, pin)
 
 class ACSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)

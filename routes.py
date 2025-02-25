@@ -24,16 +24,26 @@ def login():
         return redirect(url_for('index'))
 
     if request.method == 'POST':
-        user = User.query.filter_by(username=request.form['username']).first()
-        if user and user.check_password(request.form['password']):
+        login_type = request.form.get('login_type', 'password')
+
+        if login_type == 'password':
+            user = User.query.filter_by(username=request.form['username']).first()
+            valid = user and user.check_password(request.form['password'])
+        else:  # PIN login
+            user = User.query.filter_by(room_number=request.form['room_number']).first()
+            valid = user and user.check_pin(request.form['pin'])
+
+        if valid:
             app.logger.debug(f"Login successful for user: {user.username}, is_admin: {user.is_admin}")
             remember = 'remember' in request.form
             login_user(user, remember=remember)
-            next_page = request.args.get('next')
-            if next_page:
-                return redirect(next_page)
-            return redirect(url_for('index'))
-        flash('Invalid username or password. Please try again.', 'error')
+
+            # Redirect based on user type
+            if user.is_admin:
+                return redirect(url_for('admin_dashboard'))
+            return redirect(url_for('room_dashboard'))
+
+        flash('Invalid credentials. Please try again.', 'error')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -158,6 +168,11 @@ def register():
                 is_admin='is_admin' in request.form
             )
             user.set_password(request.form['password'])
+
+            # Set PIN if provided
+            pin = request.form.get('pin')
+            if pin and len(pin) == 4:
+                user.set_pin(pin)
 
             db.session.add(user)
             db.session.commit()

@@ -30,6 +30,11 @@
                         <label for="confirm_password" class="form-label">Confirm Password</label>
                         <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
                     </div>
+                    <div class="mb-3">
+                        <label for="pin" class="form-label">4-Digit PIN (Optional)</label>
+                        <input type="password" class="form-control" id="pin" name="pin" pattern="[0-9]{4}" maxlength="4" inputmode="numeric">
+                        <small class="form-text text-muted">Quick access code for your room</small>
+                    </div>
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="is_admin" name="is_admin">
                         <label class="form-check-label" for="is_admin">Register as Admin</label>
@@ -45,6 +50,10 @@
 document.getElementById('is_admin').addEventListener('change', function() {
     const roomNumberInput = document.getElementById('room_number');
     roomNumberInput.required = !this.checked;
+});
+
+document.getElementById('pin').addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);
 });
 </script>
 {% endblock %}

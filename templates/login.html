@@ -8,30 +8,74 @@
                 <h3 class="card-title text-center">AC Control System</h3>
             </div>
             <div class="card-body">
-                <form method="POST" id="loginForm">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">
-                            <i data-feather="user" class="me-2"></i>Username
-                        </label>
-                        <input type="text" class="form-control" id="username" name="username" required autofocus>
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">
-                            <i data-feather="lock" class="me-2"></i>Password
-                        </label>
-                        <input type="password" class="form-control" id="password" name="password" required>
-                    </div>
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="remember" name="remember">
-                        <label class="form-check-label" for="remember">Remember me</label>
-                    </div>
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary" id="loginButton">
-                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                            <span class="button-text">Login</span>
+                <ul class="nav nav-tabs mb-3" id="loginTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="password-tab" data-bs-toggle="tab" data-bs-target="#password-login" type="button" role="tab">
+                            Password Login
                         </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="pin-tab" data-bs-toggle="tab" data-bs-target="#pin-login" type="button" role="tab">
+                            PIN Login
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="loginTabContent">
+                    <div class="tab-pane fade show active" id="password-login" role="tabpanel">
+                        <form method="POST" id="passwordForm" action="{{ url_for('login') }}">
+                            <input type="hidden" name="login_type" value="password">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">
+                                    <i data-feather="user" class="me-2"></i>Username
+                                </label>
+                                <input type="text" class="form-control" id="username" name="username" required autofocus>
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">
+                                    <i data-feather="lock" class="me-2"></i>Password
+                                </label>
+                                <input type="password" class="form-control" id="password" name="password" required>
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                                <label class="form-check-label" for="remember">Remember me</label>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary" id="passwordLoginBtn">
+                                    <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                                    <span class="button-text">Login</span>
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                </form>
+
+                    <div class="tab-pane fade" id="pin-login" role="tabpanel">
+                        <form method="POST" id="pinForm" action="{{ url_for('login') }}">
+                            <input type="hidden" name="login_type" value="pin">
+                            <div class="mb-3">
+                                <label for="room_number" class="form-label">
+                                    <i data-feather="home" class="me-2"></i>Room Number
+                                </label>
+                                <input type="text" class="form-control" id="room_number" name="room_number" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="pin" class="form-label">
+                                    <i data-feather="key" class="me-2"></i>PIN
+                                </label>
+                                <input type="password" class="form-control" id="pin" name="pin" 
+                                       pattern="[0-9]{4}" maxlength="4" inputmode="numeric" required>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary" id="pinLoginBtn">
+                                    <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                                    <span class="button-text">Login with PIN</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
                 <div class="text-center mt-3">
                     <p>New user? <a href="{{ url_for('register') }}">Register here</a></p>
                 </div>
@@ -41,14 +85,20 @@
 </div>
 
 <script>
-document.getElementById('loginForm').addEventListener('submit', function(e) {
-    const button = document.getElementById('loginButton');
-    const spinner = button.querySelector('.spinner-border');
-    const buttonText = button.querySelector('.button-text');
+['passwordForm', 'pinForm'].forEach(formId => {
+    document.getElementById(formId).addEventListener('submit', function(e) {
+        const button = this.querySelector('button[type="submit"]');
+        const spinner = button.querySelector('.spinner-border');
+        const buttonText = button.querySelector('.button-text');
 
-    spinner.classList.remove('d-none');
-    buttonText.textContent = 'Logging in...';
-    button.disabled = true;
+        spinner.classList.remove('d-none');
+        buttonText.textContent = 'Logging in...';
+        button.disabled = true;
+    });
+});
+
+document.getElementById('pin').addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);
 });
 </script>
 {% endblock %}
