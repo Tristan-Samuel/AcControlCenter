@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4>Room Overview</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Room</th>
+                                <th>Current Temperature</th>
+                                <th>Max Temperature</th>
+                                <th>Auto-shutoff</th>
+                                <th>Notifications</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for room in rooms %}
+                            {% set settings = room.acsettings %}
+                            <tr>
+                                <td>{{ room.room_number }}</td>
+                                <td id="temp-{{ room.room_number }}">--°C</td>
+                                <td>{{ "%.1f"|format(settings.max_temperature) }}°C</td>
+                                <td>
+                                    <i data-feather="{{ 'check-circle' if settings.auto_shutoff else 'x-circle' }}"></i>
+                                </td>
+                                <td>
+                                    <i data-feather="{{ 'bell' if settings.email_notifications else 'bell-off' }}"></i>
+                                </td>
+                                <td id="status-{{ room.room_number }}">
+                                    <span class="badge bg-success">Normal</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
