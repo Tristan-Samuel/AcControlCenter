@@ -41,4 +41,6 @@ mail.init_app(app)
 from routes import *  # noqa
 
 with app.app_context():
+    # Import models to ensure they're registered with SQLAlchemy
+    from models import User, ACSettings, WindowEvent  # noqa
     db.create_all()
