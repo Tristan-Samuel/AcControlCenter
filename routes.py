@@ -21,13 +21,17 @@ def index():
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
-    
+
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form['username']).first()
         if user and user.check_password(request.form['password']):
-            login_user(user)
+            remember = 'remember' in request.form
+            login_user(user, remember=remember)
+            next_page = request.args.get('next')
+            if next_page:
+                return redirect(next_page)
             return redirect(url_for('index'))
-        flash('Invalid username or password')
+        flash('Invalid username or password. Please try again.', 'error')
     return render_template('login.html')
 
 @app.route('/logout')

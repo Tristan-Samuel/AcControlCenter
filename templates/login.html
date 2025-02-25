@@ -5,22 +5,50 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title">Login</h3>
+                <h3 class="card-title text-center">AC Control System</h3>
             </div>
             <div class="card-body">
-                <form method="POST">
+                <form method="POST" id="loginForm">
                     <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" required>
+                        <label for="username" class="form-label">
+                            <i data-feather="user" class="me-2"></i>Username
+                        </label>
+                        <input type="text" class="form-control" id="username" name="username" required autofocus>
                     </div>
                     <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
+                        <label for="password" class="form-label">
+                            <i data-feather="lock" class="me-2"></i>Password
+                        </label>
                         <input type="password" class="form-control" id="password" name="password" required>
                     </div>
-                    <button type="submit" class="btn btn-primary">Login</button>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                        <label class="form-check-label" for="remember">Remember me</label>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary" id="loginButton">
+                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            <span class="button-text">Login</span>
+                        </button>
+                    </div>
                 </form>
+                <div class="text-center mt-3">
+                    <p>New user? <a href="{{ url_for('register') }}">Register here</a></p>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+    const button = document.getElementById('loginButton');
+    const spinner = button.querySelector('.spinner-border');
+    const buttonText = button.querySelector('.button-text');
+
+    spinner.classList.remove('d-none');
+    buttonText.textContent = 'Logging in...';
+    button.disabled = true;
+});
+</script>
 {% endblock %}
