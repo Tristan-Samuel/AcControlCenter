@@ -99,48 +99,48 @@ def admin_dashboard():
 
 
     @app.route('/update_settings', methods=['POST'])
-    @login_required
-    def update_settings():
-        if not current_user.room_number and not current_user.is_admin:
-            flash('Only room users or admins can update settings')
-            return redirect(url_for('admin_dashboard'))
+@login_required
+def update_settings():
+    if not current_user.room_number and not current_user.is_admin:
+        flash('Only room users or admins can update settings')
+        return redirect(url_for('admin_dashboard'))
 
-        settings = ACSettings.query.filter_by(room_number=current_user.room_number).first()
-        if not settings:
-            settings = ACSettings(room_number=current_user.room_number)
-            db.session.add(settings)
+    settings = ACSettings.query.filter_by(room_number=current_user.room_number).first()
+    if not settings:
+        settings = ACSettings(room_number=current_user.room_number)
+        db.session.add(settings)
 
-        # Check if admin is forcing the settings
-        force_update = request.form.get('force_update', default='false').lower() == 'true'
+    # Check if admin is forcing the settings
+    force_update = request.form.get('force_update', default='false').lower() == 'true'
 
-        try:
-            if current_user.is_admin and force_update:
-                # Admin is forcing settings
-                if 'settings_locked' in request.form:
-                    settings.settings_locked = request.form['settings_locked'] == '1'
-                    flash('Settings access updated!', 'success')
-                else:
-                    settings.max_temperature = float(request.form['max_temperature'])
-                    settings.auto_shutoff = 'auto_shutoff' in request.form
-                    settings.email_notifications = 'email_notifications' in request.form
-                    flash('Settings enforced by admin!', 'success')
-            elif current_user.room_number:
-                # Allow user to update settings if not forced
+    try:
+        if current_user.is_admin and force_update:
+            # Admin is forcing settings
+            if 'settings_locked' in request.form:
+                settings.settings_locked = request.form['settings_locked'] == '1'
+                flash('Settings access updated!', 'success')
+            else:
                 settings.max_temperature = float(request.form['max_temperature'])
                 settings.auto_shutoff = 'auto_shutoff' in request.form
                 settings.email_notifications = 'email_notifications' in request.form
-                flash('Settings updated successfully!', 'success')
-            else:
-                flash('Access denied.', 'error')
-                return redirect(url_for('room_dashboard'))
+                flash('Settings enforced by admin!', 'success')
+        elif current_user.room_number:
+            # Allow user to update settings if not forced
+            settings.max_temperature = float(request.form['max_temperature'])
+            settings.auto_shutoff = 'auto_shutoff' in request.form
+            settings.email_notifications = 'email_notifications' in request.form
+            flash('Settings updated successfully!', 'success')
+        else:
+            flash('Access denied.', 'error')
+            return redirect(url_for('room_dashboard'))
 
-            db.session.commit()
-        except Exception as e:
-            app.logger.error(f"Settings update error: {str(e)}")
-            flash('Error updating settings. Please try again.', 'error')
-            db.session.rollback()
+        db.session.commit()
+    except Exception as e:
+        app.logger.error(f"Settings update error: {str(e)}")
+        flash('Error updating settings. Please try again.', 'error')
+        db.session.rollback()
 
-        return redirect(url_for('room_dashboard'))
+    return redirect(url_for('room_dashboard'))
 
 
 @app.route('/log_window_event', methods=['POST'])
