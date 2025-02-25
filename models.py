@@ -38,7 +38,7 @@ class ACSettings(db.Model):
     settings_locked = db.Column(db.Boolean, default=False)
 
     # Relationship back to User
-    user = db.relationship("User", backref="acsettings_user", uselist=False)
+    user = db.relationship("User", backref="acsettings_user", uselist=False, overlaps="acsettings,acsettings_user")
 
 class WindowEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
