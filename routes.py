@@ -26,6 +26,7 @@ def login():
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form['username']).first()
         if user and user.check_password(request.form['password']):
+            app.logger.debug(f"Login successful for user: {user.username}, is_admin: {user.is_admin}")
             remember = 'remember' in request.form
             login_user(user, remember=remember)
             next_page = request.args.get('next')
@@ -47,6 +48,7 @@ def room_dashboard():
     if current_user.is_admin:
         return redirect(url_for('admin_dashboard'))
 
+    app.logger.debug(f"Accessing room dashboard for user: {current_user.username}")
     settings = ACSettings.query.filter_by(room_number=current_user.room_number).first()
     if not settings:
         settings = ACSettings(room_number=current_user.room_number)
