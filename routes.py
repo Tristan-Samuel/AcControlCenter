@@ -1,76 +1,74 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+from flask import render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_mail import Message
-from datetime import datetime
-from app import db, login_manager, mail
+from app import app, db, login_manager, mail
 from models import User, ACSettings, WindowEvent
 import random  # For mock temperature data
-import logging
-
-# Create main blueprint
-main = Blueprint('main', __name__)
 
 @login_manager.user_loader
 def load_user(id):
     return db.session.get(User, int(id))
 
-@main.route('/')
+@app.route('/')
 def index():
     if current_user.is_authenticated:
         if current_user.is_admin:
-            return redirect(url_for('admin.user_management'))
-        return redirect(url_for('main.room_dashboard'))
-    return redirect(url_for('main.login'))
+            return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('room_dashboard'))
+    return redirect(url_for('login'))
 
-@main.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
-
+        return redirect(url_for('index'))
+    
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form['username']).first()
         if user and user.check_password(request.form['password']):
-            if not user.is_active and not user.is_admin:
-                flash('Your account has been deactivated. Please contact an administrator.')
-                return redirect(url_for('main.login'))
-
             login_user(user)
-            user.last_login = datetime.utcnow()
-            db.session.commit()
-            return redirect(url_for('main.index'))
+            return redirect(url_for('index'))
         flash('Invalid username or password')
     return render_template('login.html')
 
-@main.route('/logout')
+@app.route('/logout')
 @login_required
 def logout():
     logout_user()
-    return redirect(url_for('main.index'))
+    return redirect(url_for('index'))
 
-@main.route('/room_dashboard')
+@app.route('/room_dashboard')
 @login_required
 def room_dashboard():
     if current_user.is_admin:
-        return redirect(url_for('admin.dashboard'))
-
+        return redirect(url_for('admin_dashboard'))
+    
     settings = ACSettings.query.filter_by(room_number=current_user.room_number).first()
     if not settings:
         settings = ACSettings(room_number=current_user.room_number)
         db.session.add(settings)
         db.session.commit()
-
+    
     events = WindowEvent.query.filter_by(room_number=current_user.room_number)\
         .order_by(WindowEvent.timestamp.desc()).limit(10).all()
-
+    
     # Mock current temperature
     current_temp = random.uniform(20.0, 28.0)
-
+    
     return render_template('room_dashboard.html',
                          settings=settings,
                          events=events,
                          current_temp=current_temp)
 
-@main.route('/update_settings', methods=['POST'])
+@app.route('/admin_dashboard')
+@login_required
+def admin_dashboard():
+    if not current_user.is_admin:
+        return redirect(url_for('room_dashboard'))
+    
+    rooms = User.query.filter_by(is_admin=False).all()
+    return render_template('admin_dashboard.html', rooms=rooms)
+
+@app.route('/update_settings', methods=['POST'])
 @login_required
 def update_settings():
     settings = ACSettings.query.filter_by(room_number=current_user.room_number).first()
@@ -78,9 +76,9 @@ def update_settings():
     settings.auto_shutoff = 'auto_shutoff' in request.form
     settings.email_notifications = 'email_notifications' in request.form
     db.session.commit()
-    return redirect(url_for('main.room_dashboard'))
+    return redirect(url_for('room_dashboard'))
 
-@main.route('/log_window_event', methods=['POST'])
+@app.route('/log_window_event', methods=['POST'])
 @login_required
 def log_window_event():
     event = WindowEvent(
@@ -91,10 +89,10 @@ def log_window_event():
     )
     db.session.add(event)
     db.session.commit()
-
+    
     if event.window_state == 'opened' and event.ac_state == 'on':
         send_notification(current_user.email)
-
+    
     return jsonify({'status': 'success'})
 
 def send_notification(email):
@@ -104,10 +102,10 @@ def send_notification(email):
     msg.body = 'Warning: Window has been opened while AC is running!'
     mail.send(msg)
 
-@main.route('/register', methods=['GET', 'POST'])
+@app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
+        return redirect(url_for('index'))
 
     if request.method == 'POST':
         if request.form['password'] != request.form['confirm_password']:
@@ -149,10 +147,10 @@ def register():
                 db.session.commit()
 
             flash('Registration successful! Please login.')
-            return redirect(url_for('main.login'))
+            return redirect(url_for('login'))
         except Exception as e:
             db.session.rollback()
-            logging.error(f"Registration error: {str(e)}")
+            app.logger.error(f"Registration error: {str(e)}")
             flash('An error occurred during registration. Please try again.')
 
     return render_template('register.html')

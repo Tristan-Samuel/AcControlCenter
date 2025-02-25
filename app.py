@@ -18,7 +18,7 @@ mail = Mail()
 
 # Create the app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET")
+app.secret_key = os.environ.get("SESSION_SECRET", "dev_key")
 
 # Configure database
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///ac_control.db"
@@ -34,17 +34,11 @@ app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 # Initialize extensions
 db.init_app(app)
 login_manager.init_app(app)
-login_manager.login_view = 'main.login'  # Updated to use blueprint route
+login_manager.login_view = 'login'
 mail.init_app(app)
 
+# Import routes after app initialization
+from routes import *  # noqa
+
 with app.app_context():
-    # Make sure to import the models here or their tables won't be created
-    import models  # noqa: F401
-
     db.create_all()
-
-    # Import and register blueprints after db initialization
-    from routes.main import main
-    from routes.admin import admin
-    app.register_blueprint(main)
-    app.register_blueprint(admin)
