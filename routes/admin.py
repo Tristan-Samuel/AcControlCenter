@@ -13,9 +13,15 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_admin:
             flash('You need to be an admin to access this page.')
-            return redirect(url_for('index'))
+            return redirect(url_for('main.index'))
         return f(*args, **kwargs)
     return decorated_function
+
+@admin.route('/')
+@login_required
+@admin_required
+def index():
+    return redirect(url_for('admin.user_management'))
 
 @admin.route('/users')
 @login_required
@@ -77,3 +83,10 @@ def toggle_user_status(user_id):
 
     flash(f'User {"activated" if user.is_active else "deactivated"} successfully')
     return redirect(url_for('admin.user_management'))
+
+@admin.route('/dashboard')
+@login_required
+@admin_required
+def dashboard():
+    rooms = User.query.filter_by(is_admin=False).all()
+    return render_template('admin_dashboard.html', rooms=rooms)
