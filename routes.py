@@ -127,7 +127,19 @@ def toggle_lock(room_number):
     db.session.commit()
 
     flash(f"Settings {'locked' if settings.settings_locked else 'unlocked'} successfully.", "success")
-    return redirect(url_for('room_dashboard', room_number=room_number))
+    
+    # For admin users, we need to use admin_login pattern instead of room_dashboard
+    # to prevent auto-redirect to admin_dashboard
+    if current_user.is_admin:
+        return render_template('room_dashboard.html',
+                             session_attributes=SessionAtributes(room_number, True),
+                             room_number=room_number,
+                             settings=settings,
+                             events=WindowEvent.query.filter_by(room_number=room_number)
+                                 .order_by(WindowEvent.timestamp.desc()).limit(10).all(),
+                             current_temp=random.uniform(20.0, 28.0))
+    else:
+        return redirect(url_for('room_dashboard', room_number=room_number))
 
 @app.route('/toggle_max_temp_lock/<room_number>', methods=['POST'])
 @login_required
@@ -148,7 +160,19 @@ def toggle_max_temp_lock(room_number):
     db.session.commit()
 
     flash(f"Max temperature setting {'locked' if settings.max_temp_locked else 'unlocked'} successfully.", "success")
-    return redirect(url_for('room_dashboard', room_number=room_number))
+    
+    # For admin users, we need to use admin_login pattern instead of room_dashboard
+    # to prevent auto-redirect to admin_dashboard
+    if current_user.is_admin:
+        return render_template('room_dashboard.html',
+                             session_attributes=SessionAtributes(room_number, True),
+                             room_number=room_number,
+                             settings=settings,
+                             events=WindowEvent.query.filter_by(room_number=room_number)
+                                 .order_by(WindowEvent.timestamp.desc()).limit(10).all(),
+                             current_temp=random.uniform(20.0, 28.0))
+    else:
+        return redirect(url_for('room_dashboard', room_number=room_number))
 
 
 @app.route('/admin_dashboard')
