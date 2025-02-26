@@ -166,10 +166,10 @@ def admin_dashboard():
 def update_settings():
     is_admin = request.form.get('is_admin', 'false').lower() == 'true'
     room_number2 = request.form.get('room_number')
-    print(room_number2)
+    
     if not request.form.get('room_number', "").isnumeric():
         room_number2 = current_user.room_number
-    print(room_number2, is_admin)
+        
     if not room_number2 and not is_admin:
         flash('Only room users or admins can update settings')
         return redirect(url_for('admin_dashboard'))
@@ -221,7 +221,8 @@ def update_settings():
         flash('Error updating settings. Please try again.', 'error')
         db.session.rollback()
 
-    return redirect(url_for('room_dashboard'))
+    # Always redirect back to the room_dashboard
+    return redirect(url_for('room_dashboard', room_number=room_number2))
 
 
 @app.route('/log_window_event', methods=['POST'])
