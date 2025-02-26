@@ -18,7 +18,7 @@
                                 <th>Auto-shutoff</th>
                                 <th>Notifications</th>
                                 <th>Status</th>
-                                <th>Lock Settings</th>
+                                <th>Admin Login</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -38,12 +38,10 @@
                                     <span class="badge bg-success">Normal</span>
                                 </td>
                                 <td>
-                                    <form method="POST" action="{{ url_for('update_settings') }}" class="d-inline">
+                                    <form method="POST" action="{{ url_for('admin_login') }}" class="d-inline">
                                         <input type="hidden" name="room_number" value="{{ room.room_number }}">
-                                        <input type="hidden" name="force_update" value="true">
-                                        <input type="hidden" name="settings_locked" value="{{ '0' if settings.settings_locked else '1' }}">
-                                        <button type="submit" class="btn btn-sm {{ 'btn-danger' if settings.settings_locked else 'btn-secondary' }}">
-                                            {{ 'Unlock' if settings.settings_locked else 'Lock' }}
+                                        <button type="submit" class="btn btn-sm btn-primary">
+                                            Login as Admin
                                         </button>
                                     </form>
                                 </td>

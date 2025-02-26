@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row" data-room-number="{{ current_user.room_number }}">
+<div class="row" data-room-number="{{ room_number }}">
     <div class="col-md-6">
         <div class="card mb-4">
             <div class="card-header">
-                <h4>Room {{ current_user.room_number }} Status</h4>
+                <h4>Room {{ room_number }} Status</h4>
             </div>
             <div class="card-body">
                 <div class="d-flex align-items-center mb-3">
@@ -23,28 +23,60 @@
                 <h4>AC Settings</h4>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('update_settings') }}" id="settingsForm">
+                {% set is_admin = False %}
+                {% if session_attributes %}
+                    {% set is_admin = session_attributes.is_admin %}
+                {% endif %}
+                <form method="POST" action="{{ url_for('update_settings', room_number=room_number) }}" id="settingsForm">
+                    <input type="hidden" name="room_number" value="{{ room_number }}">
+                    <input type="hidden" name="is_admin" value="{{ 'true' if is_admin else 'false' }}">
                     <div class="mb-3">
                         <label for="max_temperature" class="form-label">Maximum Temperature (°C)</label>
                         <input type="number" class="form-control" id="max_temperature" name="max_temperature"
                                value="{{ settings.max_temperature }}" step="0.5" min="18" max="30"
-                               {% if settings.settings_locked %}disabled{% endif %}>
+                               {% if settings.max_temp_locked and is_admin == False %}disabled{% endif %}>
                     </div>
+                    
+                    {% if is_admin %}
+                        <button type="submit" class="btn btn-warning" id="toggleMaxTempLockBtn"
+                                formaction="{{ url_for('toggle_max_temp_lock', room_number=room_number) }}" 
+                                formmethod="POST">
+                            {% if settings.max_temp_locked %}
+                                Unlock Max Temperature
+                            {% else %}
+                                Lock Max Temperature
+                            {% endif %}
+                        </button>
+                    {% endif %}
+
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="auto_shutoff" name="auto_shutoff"
                                {% if settings.auto_shutoff %}checked{% endif %}
-                               {% if settings.settings_locked %}disabled{% endif %}>
+                               {% if settings.settings_locked and is_admin == False %}disabled{% endif %}>
                         <label class="form-check-label" for="auto_shutoff">Auto-shutoff when window opens</label>
                     </div>
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="email_notifications" name="email_notifications"
                                {% if settings.email_notifications %}checked{% endif %}
-                               {% if settings.settings_locked %}disabled{% endif %}>
+                               {% if settings.settings_locked and is_admin == False %}disabled{% endif %}>
                         <label class="form-check-label" for="email_notifications">Email notifications</label>
                     </div>
-                    {% if settings.settings_locked %}
+                    {% if settings.settings_locked and is_admin == False %}
                     <div class="alert alert-info">Settings are currently locked by admin.</div>
                     {% endif %}
+
+                    {% if is_admin %}
+                        <button type="submit" class="btn btn-warning" id="toggleLockBtn"
+                                formaction="{{ url_for('toggle_lock', room_number=room_number) }}" 
+                                formmethod="POST">
+                            {% if settings.settings_locked %}
+                                Unlock Settings
+                            {% else %}
+                                Lock Settings
+                            {% endif %}
+                        </button>
+                    {% endif %}
+
                     <button type="submit" class="btn btn-primary" id="saveSettingsBtn">
                         <span class="spinner-border spinner-border-sm d-none" role="status"></span>
                         <span>Save Settings</span>

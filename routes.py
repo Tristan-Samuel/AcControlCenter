@@ -2,7 +2,7 @@ from flask import render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_mail import Message
 from app import app, db, login_manager, mail
-from models import User, ACSettings, WindowEvent
+from models import User, ACSettings, WindowEvent, SessionAtributes
 import random  # For mock temperature data
 from datetime import datetime
 
@@ -59,7 +59,27 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('index'))
+    
 
+@app.route('/admin_login', methods=['POST'])
+def admin_login():
+    room_number2 = request.form.get('room_number')
+    settings = ACSettings.query.filter_by(
+        room_number=room_number2).first()
+
+    events = WindowEvent.query.filter_by(room_number=room_number2)\
+        .order_by(WindowEvent.timestamp.desc()).limit(10).all()
+
+    # Mock current temperature
+    current_temp = random.uniform(20.0, 28.0)
+
+    return render_template('room_dashboard.html',
+                           session_attributes=SessionAtributes(room_number2, True),
+                          room_number=room_number2,
+                           settings=settings,
+                           events=events,
+                           current_temp=current_temp)
+    
 
 @app.route('/room_dashboard')
 @login_required
@@ -83,9 +103,52 @@ def room_dashboard():
     current_temp = random.uniform(20.0, 28.0)
 
     return render_template('room_dashboard.html',
+                          room_number=current_user.room_number,
                            settings=settings,
                            events=events,
                            current_temp=current_temp)
+
+@app.route('/toggle_lock/<room_number>', methods=['POST'])
+@login_required
+def toggle_lock(room_number):
+    # Ensure only admin users can toggle settings
+    if not current_user.is_admin:
+        flash("You do not have permission to lock/unlock settings.", "danger")
+        return redirect(url_for('room_dashboard', room_number=room_number))
+
+    # Fetch AC settings for this room
+    settings = ACSettings.query.filter_by(room_number=room_number).first()
+    if not settings:
+        flash("No settings found for this room.", "danger")
+        return redirect(url_for('room_dashboard', room_number=room_number))
+
+    # Toggle the lock state
+    settings.settings_locked = not settings.settings_locked
+    db.session.commit()
+
+    flash(f"Settings {'locked' if settings.settings_locked else 'unlocked'} successfully.", "success")
+    return redirect(url_for('room_dashboard', room_number=room_number))
+
+@app.route('/toggle_max_temp_lock/<room_number>', methods=['POST'])
+@login_required
+def toggle_max_temp_lock(room_number):
+    # Ensure only admin users can toggle the max temp lock
+    if not current_user.is_admin:
+        flash("You do not have permission to lock/unlock the max temperature.", "danger")
+        return redirect(url_for('room_dashboard', room_number=room_number))
+
+    # Fetch AC settings for this room
+    settings = ACSettings.query.filter_by(room_number=room_number).first()
+    if not settings:
+        flash("No settings found for this room.", "danger")
+        return redirect(url_for('room_dashboard', room_number=room_number))
+
+    # Toggle the max temp lock state
+    settings.max_temp_locked = not settings.max_temp_locked
+    db.session.commit()
+
+    flash(f"Max temperature setting {'locked' if settings.max_temp_locked else 'unlocked'} successfully.", "success")
+    return redirect(url_for('room_dashboard', room_number=room_number))
 
 
 @app.route('/admin_dashboard')
@@ -98,23 +161,29 @@ def admin_dashboard():
     return render_template('admin_dashboard.html', rooms=rooms)
 
 
-    @app.route('/update_settings', methods=['POST'])
+@app.route('/update_settings', methods=['POST'])
 @login_required
 def update_settings():
-    if not current_user.room_number and not current_user.is_admin:
+    is_admin = request.form.get('is_admin', 'false').lower() == 'true'
+    room_number2 = request.form.get('room_number')
+    print(room_number2)
+    if not request.form.get('room_number', "").isnumeric():
+        room_number2 = current_user.room_number
+    print(room_number2, is_admin)
+    if not room_number2 and not is_admin:
         flash('Only room users or admins can update settings')
         return redirect(url_for('admin_dashboard'))
 
-    settings = ACSettings.query.filter_by(room_number=current_user.room_number).first()
+    settings = ACSettings.query.filter_by(room_number=room_number2).first()
     if not settings:
-        settings = ACSettings(room_number=current_user.room_number)
+        settings = ACSettings(room_number=room_number2)
         db.session.add(settings)
 
     # Check if admin is forcing the settings
     force_update = request.form.get('force_update', default='false').lower() == 'true'
 
     try:
-        if current_user.is_admin and force_update:
+        if is_admin and force_update:
             # Admin is forcing settings
             if 'settings_locked' in request.form:
                 settings.settings_locked = request.form['settings_locked'] == '1'
@@ -124,11 +193,23 @@ def update_settings():
                 settings.auto_shutoff = 'auto_shutoff' in request.form
                 settings.email_notifications = 'email_notifications' in request.form
                 flash('Settings enforced by admin!', 'success')
-        elif current_user.room_number:
+        elif room_number2:
             # Allow user to update settings if not forced
-            settings.max_temperature = float(request.form['max_temperature'])
-            settings.auto_shutoff = 'auto_shutoff' in request.form
-            settings.email_notifications = 'email_notifications' in request.form
+            try:
+                settings.max_temperature = float(request.form['max_temperature'])
+            except Exception:
+                pass
+                
+            try:
+                settings.auto_shutoff = 'auto_shutoff' in request.form
+            except Exception:
+                pass
+                
+            try:
+                settings.email_notifications = 'email_notifications' in request.form
+            except Exception:
+                pass
+                
             flash('Settings updated successfully!', 'success')
         else:
             flash('Access denied.', 'error')

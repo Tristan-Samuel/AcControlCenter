@@ -36,6 +36,7 @@ class ACSettings(db.Model):
     auto_shutoff = db.Column(db.Boolean, default=True)
     email_notifications = db.Column(db.Boolean, default=True)
     settings_locked = db.Column(db.Boolean, default=False)
+    max_temp_locked = db.Column(db.Boolean, default=False)  # Locks max temperature separately
 
     # Relationship back to User
     user = db.relationship("User", backref="acsettings_user", uselist=False, overlaps="acsettings,acsettings_user")
@@ -47,3 +48,8 @@ class WindowEvent(db.Model):
     window_state = db.Column(db.String(10))  # 'opened' or 'closed'
     ac_state = db.Column(db.String(10))  # 'on' or 'off'
     temperature = db.Column(db.Float)
+
+class SessionAtributes():
+    def __init__(self, room_number, is_admin):
+        self.room_number = room_number
+        self.is_admin = is_admin
