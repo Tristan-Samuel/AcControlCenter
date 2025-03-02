@@ -344,6 +344,16 @@ def get_temperature(room_number):
     # For now, generate mock temperature data
     # This will be replaced with actual sensor data from Raspberry Pi
     current_temp = random.uniform(20.0, 28.0)
+    
+    # Check if temperature exceeds max temperature setting
+    settings = ACSettings.query.filter_by(room_number=room_number).first()
+    user = User.query.filter_by(room_number=room_number).first()
+    
+    if settings and user and current_temp > settings.max_temperature and settings.email_notifications:
+        # Import here to avoid circular imports
+        from email_utils import send_temperature_alert
+        send_temperature_alert(user.email, room_number, round(current_temp, 1))
+    
     return jsonify({
         'temperature': round(current_temp, 1),
         'timestamp': datetime.utcnow().isoformat()
@@ -377,6 +387,26 @@ def get_room_status(room_number):
         latest_event.ac_state if latest_event else 'unknown'
     })
     
+@app.route('/test_email', methods=['GET'])
+@login_required
+def test_email():
+    if not current_user.is_admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    from email_utils import send_email
+    success = send_email(
+        "Test Email from AC Control System",
+        current_user.email,
+        "This is a test email from your AC Control System."
+    )
+    
+    if success:
+        flash("Test email sent successfully!", "success")
+    else:
+        flash("Failed to send test email. Check your email configuration.", "error")
+        
+    return redirect(url_for('admin_dashboard'))
+
 @app.route('/receive_data', methods=['POST'])
 def receive_data():
     # Check if the incoming request has JSON data
