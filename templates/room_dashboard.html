@@ -28,6 +28,7 @@
                     {% set is_admin = session_attributes.is_admin %}
                 {% endif %}
                 <form method="POST" action="{{ url_for('update_settings', room_number=room_number) }}" id="settingsForm">
+                    <input type="hidden" id="save_settings" name="save_settings" value="false">
                     <input type="hidden" name="room_number" value="{{ room_number }}">
                     <input type="hidden" name="is_admin" value="{{ 'true' if is_admin else 'false' }}">
                     <div class="mb-3">
@@ -81,7 +82,7 @@
                         </a>
                     {% endif %}
 
-                    <button type="submit" class="btn btn-primary" id="saveSettingsBtn">
+                    <button type="submit" onclick="document.getElementById('save_settings').value='true'" class="btn btn-primary" id="saveSettingsBtn">
                         <span class="spinner-border spinner-border-sm d-none" role="status"></span>
                         <span>Save Settings</span>
                     </button>

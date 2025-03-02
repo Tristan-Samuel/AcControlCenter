@@ -59,7 +59,7 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('index'))
-    
+
 
 @app.route('/admin_login', methods=['POST'])
 def admin_login():
@@ -79,7 +79,7 @@ def admin_login():
                            settings=settings,
                            events=events,
                            current_temp=current_temp)
-    
+
 
 @app.route('/room_dashboard')
 @login_required
@@ -127,7 +127,7 @@ def toggle_lock(room_number):
     db.session.commit()
 
     flash(f"Settings {'locked' if settings.settings_locked else 'unlocked'} successfully.", "success")
-    
+
     # For admin users, we need to use admin_login pattern instead of room_dashboard
     # to prevent auto-redirect to admin_dashboard
     if current_user.is_admin:
@@ -160,7 +160,7 @@ def toggle_max_temp_lock(room_number):
     db.session.commit()
 
     flash(f"Max temperature setting {'locked' if settings.max_temp_locked else 'unlocked'} successfully.", "success")
-    
+
     # For admin users, we need to use admin_login pattern instead of room_dashboard
     # to prevent auto-redirect to admin_dashboard
     if current_user.is_admin:
@@ -188,12 +188,15 @@ def admin_dashboard():
 @app.route('/update_settings', methods=['POST'])
 @login_required
 def update_settings():
+    save_settings = False
+    if request.form.get("save_settings", "").lower() == "true":
+        save_settings = True
     is_admin = request.form.get('is_admin', 'false').lower() == 'true'
     room_number2 = request.form.get('room_number')
-    
+
     if not request.form.get('room_number', "").isnumeric():
         room_number2 = current_user.room_number
-        
+
     if not room_number2 and not is_admin:
         flash('Only room users or admins can update settings')
         return redirect(url_for('admin_dashboard'))
@@ -223,17 +226,17 @@ def update_settings():
                 settings.max_temperature = float(request.form['max_temperature'])
             except Exception:
                 pass
-                
+
             try:
                 settings.auto_shutoff = 'auto_shutoff' in request.form
             except Exception:
                 pass
-                
+
             try:
                 settings.email_notifications = 'email_notifications' in request.form
             except Exception:
                 pass
-                
+
             flash('Settings updated successfully!', 'success')
         else:
             flash('Access denied.', 'error')
@@ -373,3 +376,24 @@ def get_room_status(room_number):
         'ac_state':
         latest_event.ac_state if latest_event else 'unknown'
     })
+    
+@app.route('/receive_data', methods=['POST'])
+def receive_data():
+    # Check if the incoming request has JSON data
+    if request.is_json:
+        data = request.get_json()  # Parse the incoming JSON data
+        number = data.get('room_number')
+        string = data.get('message')
+        settings = ACSettings.query.filter_by(
+            room_number=number).first()
+        if not settings:
+            settings = ACSettings(room_number=number)
+            db.session.add(settings)
+            db.session.commit()
+
+        print(f"Received number: {number}, string: {settings}")
+
+        # Return a JSON response
+        return jsonify({"message": "Data received successfully", "status": "success"}), 200
+    else:
+        return jsonify({"message": "Request must be JSON", "status": "error"}), 400
