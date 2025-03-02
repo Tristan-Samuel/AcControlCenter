@@ -30,17 +30,19 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.pin, pin)
 
 class ACSettings(db.Model):
-    def __init__(self, room_number=0):
-        self.id = db.Column(db.Integer, primary_key=True)
-        self.room_number = db.Column(db.String(room_number), db.ForeignKey('user.room_number'))
-        self.max_temperature = db.Column(db.Float, default=24.0)
-        self.auto_shutoff = db.Column(db.Boolean, default=True)
-        self.email_notifications = db.Column(db.Boolean, default=True)
-        self.settings_locked = db.Column(db.Boolean, default=False)
-        self.max_temp_locked = db.Column(db.Boolean, default=False)  # Locks max temperature separately
+    id = db.Column(db.Integer, primary_key=True)
+    room_number = db.Column(db.String(10), db.ForeignKey('user.room_number'))
+    max_temperature = db.Column(db.Float, default=24.0)
+    auto_shutoff = db.Column(db.Boolean, default=True)
+    email_notifications = db.Column(db.Boolean, default=True)
+    settings_locked = db.Column(db.Boolean, default=False)
+    max_temp_locked = db.Column(db.Boolean, default=False)  # Locks max temperature separately
     
-        # Relationship back to User
-        self.user = db.relationship("User", backref="acsettings_user", uselist=False, overlaps="acsettings,acsettings_user")
+    # Relationship back to User
+    user = db.relationship("User", backref="acsettings_user", uselist=False, overlaps="acsettings,acsettings_user")
+    
+    def __init__(self, room_number=None):
+        self.room_number = room_number
 
 class WindowEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
