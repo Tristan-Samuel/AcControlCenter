@@ -383,7 +383,7 @@ def receive_data():
     if request.is_json:
         data = request.get_json()  # Parse the incoming JSON data
         number = data.get('room_number')
-        string = data.get('message')
+        state = data.get('state')
         settings = ACSettings.query.filter_by(
             room_number=number).first()
         if not settings:
@@ -391,9 +391,14 @@ def receive_data():
             db.session.add(settings)
             db.session.commit()
 
-        print(f"Received number: {number}, string: {settings}")
+        print(f"Received number: {number}, state: {str(state)}")
 
+        if state == "on":
+            state = "off"
+        else:
+            state = "on"
+            
         # Return a JSON response
-        return jsonify({"message": "Data received successfully", "status": "success"}), 200
+        return jsonify({"message": "Data received successfully", "state": state, "temperature": str(settings.max_temperature)}), 200
     else:
         return jsonify({"message": "Request must be JSON", "status": "error"}), 400
