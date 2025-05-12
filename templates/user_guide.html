@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">AC Control System - User Guide</h1>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title h4">System Overview</h2>
+        </div>
+        <div class="card-body">
+            <p>The AC Control System helps schools monitor and manage their AC units efficiently by detecting when windows are open, automatically shutting off AC to save energy, and providing email notifications for important events.</p>
+            
+            <p>This guide will walk you through the features and how to use the system effectively.</p>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title h4">User Accounts</h2>
+        </div>
+        <div class="card-body">
+            <h3 class="h5">Types of Accounts</h3>
+            <ul>
+                <li><strong>Room Accounts:</strong> For individual classrooms or offices. Each room has its own account with specific settings.</li>
+                <li><strong>Admin Accounts:</strong> For facility managers and administrators who need to oversee all rooms.</li>
+            </ul>
+            
+            <h3 class="h5">Logging In</h3>
+            <p>You can log in using either:</p>
+            <ul>
+                <li><strong>Username and Password:</strong> Your standard account credentials</li>
+                <li><strong>Room Number and PIN:</strong> A quick access option for regular users</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title h4">Room Dashboard</h2>
+        </div>
+        <div class="card-body">
+            <h3 class="h5">Temperature Display</h3>
+            <p>The dashboard shows the current temperature in your room with a chart of recent readings.</p>
+            
+            <h3 class="h5">AC Settings</h3>
+            <ul>
+                <li><strong>Maximum Temperature:</strong> The highest allowed temperature before adjustments are made.</li>
+                <li><strong>Auto-shutoff:</strong> When enabled, the AC will turn off automatically when a window is opened.</li>
+                <li><strong>Shutoff Delay:</strong> Time in seconds to wait before turning off the AC after a window opens. This gives you time to close the window without the AC shutting off immediately.</li>
+                <li><strong>Email Notifications:</strong> When enabled, you'll receive email alerts for important events (like windows left open).</li>
+            </ul>
+            
+            <h3 class="h5">Recent Events</h3>
+            <p>This table shows a history of window events (opened/closed) and AC status, helping you track room activity.</p>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title h4">For Administrators</h2>
+        </div>
+        <div class="card-body">
+            <h3 class="h5">Admin Dashboard</h3>
+            <p>The admin dashboard provides an overview of all rooms in the system:</p>
+            <ul>
+                <li>View all room temperature and status at a glance</li>
+                <li>Access individual room dashboards</li>
+                <li>Enforce settings across multiple rooms</li>
+            </ul>
+            
+            <h3 class="h5">Settings Management</h3>
+            <p>As an administrator, you have additional controls:</p>
+            <ul>
+                <li><strong>Lock Settings:</strong> Prevent room users from changing their settings</li>
+                <li><strong>Lock Maximum Temperature:</strong> Specifically lock the temperature setting while allowing other changes</li>
+                <li><strong>Force Update:</strong> Apply settings to a room regardless of locks</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title h4">Delayed AC Shutoff Feature</h2>
+        </div>
+        <div class="card-body">
+            <h3 class="h5">How It Works</h3>
+            <p>When a window is opened while the AC is running, the system will:</p>
+            <ol>
+                <li>Register the window-open event immediately</li>
+                <li>Wait for the configured delay period (0-300 seconds)</li>
+                <li>If the window remains open after the delay, turn off the AC and send a notification (if enabled)</li>
+                <li>If the window is closed before the delay expires, cancel the automatic shutoff</li>
+            </ol>
+            
+            <h3 class="h5">Setting the Delay</h3>
+            <p>To configure your preferred delay:</p>
+            <ol>
+                <li>Navigate to your Room Dashboard</li>
+                <li>Find the "Shutoff Delay" setting</li>
+                <li>Set your desired delay in seconds</li>
+                <li>Click "Save Settings"</li>
+            </ol>
+            
+            <div class="alert alert-info">
+                <strong>Tip:</strong> Setting the delay to 0 seconds will turn off the AC immediately when a window opens. A longer delay (e.g., 30-60 seconds) gives you time to close the window without the AC turning off.
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title h4">Troubleshooting</h2>
+        </div>
+        <div class="card-body">
+            <h3 class="h5">Common Issues</h3>
+            <ul>
+                <li><strong>Not receiving email notifications:</strong> Check that email notifications are enabled in your settings and that your email address is entered correctly.</li>
+                <li><strong>AC not turning off when window opens:</strong> Verify that auto-shutoff is enabled. If you've set a delay, the AC will turn off after that delay period expires.</li>
+                <li><strong>Unable to change settings:</strong> An administrator may have locked your settings. Contact your system administrator.</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="text-center mb-4">
+        <a href="{{ url_for('index') }}" class="btn btn-primary">Return to Dashboard</a>
+    </div>
+</div>
+{% endblock %}

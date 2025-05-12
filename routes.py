@@ -246,6 +246,16 @@ def update_settings():
                 settings.auto_shutoff = 'auto_shutoff' in request.form
             except Exception:
                 pass
+                
+            try:
+                settings.shutoff_delay = int(request.form.get('shutoff_delay', 30))
+                # Ensure delay is within valid range
+                if settings.shutoff_delay < 0:
+                    settings.shutoff_delay = 0
+                elif settings.shutoff_delay > 300:
+                    settings.shutoff_delay = 300
+            except Exception:
+                pass
 
             try:
                 settings.email_notifications = 'email_notifications' in request.form
@@ -425,6 +435,12 @@ def test_email():
     return redirect(url_for('admin_dashboard'))
 
 
+@app.route('/user_guide')
+def user_guide():
+    """Display the system user guide with detailed instructions"""
+    return render_template('user_guide.html')
+
+
 @app.route('/api/recent_events/<room_number>')
 @login_required
 def get_recent_events(room_number):
@@ -469,34 +485,86 @@ def receive_data():
 
         print(f"Received data: room={room_number}, window={window_state}, ac={ac_state}, temp={temperature}")
         
-        # Log the window event in the database
+        # Log the window event and handle delayed actions
         try:
-            # Create a WindowEvent instance to log the event
-            event = WindowEvent()
-            event.room_number = room_number
-            event.window_state = window_state
-            event.ac_state = ac_state
-            event.temperature = float(temperature) if temperature else 22.0  # Default temperature if not provided
+            # Get current temperature
+            temp_value = float(temperature) if temperature else 22.0  # Default temperature if not provided
             
-            db.session.add(event)
-            db.session.commit()
-            print(f"Window event logged successfully: {event.id}")
-            
-            # Send notification if window is opened while AC is running
-            if window_state == 'opened' and ac_state == 'on' and settings.email_notifications:
-                user = User.query.filter_by(room_number=room_number).first()
-                if user:
-                    print(f"Sending notification to {user.email}")
-                    send_notification(user.email)
+            # Special handling for window opened while AC is on
+            if window_state == 'opened' and ac_state == 'on' and settings.auto_shutoff:
+                # If there's a delay set, create a pending event
+                if settings.shutoff_delay > 0:
+                    from datetime import datetime, timedelta
+                    from models import PendingWindowEvent
+                    
+                    # Calculate when the action should be taken
+                    scheduled_time = datetime.utcnow() + timedelta(seconds=settings.shutoff_delay)
+                    
+                    # Create a pending event
+                    pending_event = PendingWindowEvent()
+                    pending_event.room_number = room_number
+                    pending_event.window_state = window_state
+                    pending_event.ac_state = ac_state
+                    pending_event.temperature = temp_value
+                    pending_event.scheduled_action_time = scheduled_time
+                    pending_event.processed = False
+                    
+                    # Save the pending event
+                    db.session.add(pending_event)
+                    db.session.commit()
+                    print(f"Created pending event {pending_event.id} for room {room_number}, scheduled for {scheduled_time}")
+                    
+                    # Log the current state (before any action is taken)
+                    event = WindowEvent()
+                    event.room_number = room_number
+                    event.window_state = window_state
+                    event.ac_state = ac_state  # Still on at this point
+                    event.temperature = temp_value
+                    db.session.add(event)
+                    db.session.commit()
+                    print(f"Window event logged successfully: {event.id}")
+                    
+                    # The AC will be turned off later by the scheduler
+                    new_ac_state = ac_state  # Keep it on for now
+                else:
+                    # No delay, turn off AC immediately
+                    event = WindowEvent()
+                    event.room_number = room_number
+                    event.window_state = window_state
+                    event.ac_state = 'off'  # Turn off immediately
+                    event.temperature = temp_value
+                    db.session.add(event)
+                    db.session.commit()
+                    print(f"Window event logged successfully: {event.id}")
+                    
+                    # Send notification immediately if configured
+                    if settings.email_notifications:
+                        user = User.query.filter_by(room_number=room_number).first()
+                        if user:
+                            print(f"Sending notification to {user.email}")
+                            try:
+                                send_notification(user.email)
+                            except Exception as e:
+                                print(f"Error sending notification: {str(e)}")
+                    
+                    new_ac_state = 'off'  # Turn off immediately
+            else:
+                # Regular event without special handling
+                event = WindowEvent()
+                event.room_number = room_number
+                event.window_state = window_state
+                event.ac_state = ac_state
+                event.temperature = temp_value
+                db.session.add(event)
+                db.session.commit()
+                print(f"Window event logged successfully: {event.id}")
+                
+                new_ac_state = ac_state  # Keep current state
         except Exception as e:
             db.session.rollback()
             print(f"Error logging window event: {str(e)}")
             # Continue processing even if logging fails
-
-        # Determine new AC state based on settings
-        new_ac_state = ac_state
-        if window_state == 'opened' and ac_state == 'on' and settings.auto_shutoff:
-            new_ac_state = 'off'
+            new_ac_state = ac_state  # Keep current state on error
 
         # Return a JSON response
         return jsonify({
