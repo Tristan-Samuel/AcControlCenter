@@ -133,5 +133,6 @@ document.getElementById('settingsForm').addEventListener('submit', function(e) {
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 <script src="{{ url_for('static', filename='js/temperature_chart.js') }}"></script>
 {% endblock %}

@@ -269,10 +269,12 @@ def update_settings():
 @app.route('/log_window_event', methods=['POST'])
 @login_required
 def log_window_event():
-    event = WindowEvent(room_number=current_user.room_number,
-                        window_state=request.form['window_state'],
-                        ac_state=request.form['ac_state'],
-                        temperature=float(request.form['temperature']))
+    event = WindowEvent()
+    event.room_number = current_user.room_number
+    event.window_state = request.form['window_state']
+    event.ac_state = request.form['ac_state']
+    event.temperature = float(request.form['temperature'])
+    
     db.session.add(event)
     db.session.commit()
 
@@ -422,6 +424,31 @@ def test_email():
     return redirect(url_for('admin_dashboard'))
 
 
+@app.route('/api/recent_events/<room_number>')
+@login_required
+def get_recent_events(room_number):
+    # Authorize access - must be admin or the owner of the room
+    if not current_user.is_admin and current_user.room_number != room_number:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    # Fetch latest events for this room (limit to 10)
+    events = WindowEvent.query.filter_by(room_number=room_number)\
+        .order_by(WindowEvent.timestamp.desc()).limit(10).all()
+        
+    # Format events for JSON response
+    events_data = []
+    for event in events:
+        events_data.append({
+            'id': event.id,
+            'timestamp': event.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'window_state': event.window_state,
+            'ac_state': event.ac_state,
+            'temperature': event.temperature
+        })
+        
+    return jsonify({'events': events_data})
+
+
 @app.route('/receive_data', methods=['POST'])
 def receive_data():
     print("Received data")
@@ -444,12 +471,12 @@ def receive_data():
         # Log the window event in the database
         try:
             # Create a WindowEvent instance to log the event
-            event = WindowEvent(
-                room_number=room_number,
-                window_state=window_state,
-                ac_state=ac_state,
-                temperature=float(temperature) if temperature else 22.0  # Default temperature if not provided
-            )
+            event = WindowEvent()
+            event.room_number = room_number
+            event.window_state = window_state
+            event.ac_state = ac_state
+            event.temperature = float(temperature) if temperature else 22.0  # Default temperature if not provided
+            
             db.session.add(event)
             db.session.commit()
             print(f"Window event logged successfully: {event.id}")
