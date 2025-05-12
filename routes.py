@@ -64,8 +64,7 @@ def logout():
 @app.route('/admin_login', methods=['POST'])
 def admin_login():
     room_number2 = request.form.get('room_number')
-    settings = ACSettings.query.filter_by(
-        room_number=room_number2).first()
+    settings = ACSettings.query.filter_by(room_number=room_number2).first()
 
     events = WindowEvent.query.filter_by(room_number=room_number2)\
         .order_by(WindowEvent.timestamp.desc()).limit(10).all()
@@ -74,11 +73,11 @@ def admin_login():
     current_temp = random.uniform(20.0, 28.0)
 
     return render_template('room_dashboard.html',
-                         is_admin=True,
-                         room_number=room_number2,
-                         settings=settings,
-                         events=events,
-                         current_temp=current_temp)
+                           is_admin=True,
+                           room_number=room_number2,
+                           settings=settings,
+                           events=events,
+                           current_temp=current_temp)
 
 
 @app.route('/room_dashboard')
@@ -103,10 +102,11 @@ def room_dashboard():
     current_temp = random.uniform(20.0, 28.0)
 
     return render_template('room_dashboard.html',
-                          room_number=current_user.room_number,
+                           room_number=current_user.room_number,
                            settings=settings,
                            events=events,
                            current_temp=current_temp)
+
 
 @app.route('/toggle_lock/<room_number>', methods=['POST'])
 @login_required
@@ -126,27 +126,33 @@ def toggle_lock(room_number):
     settings.settings_locked = not settings.settings_locked
     db.session.commit()
 
-    flash(f"Settings {'locked' if settings.settings_locked else 'unlocked'} successfully.", "success")
+    flash(
+        f"Settings {'locked' if settings.settings_locked else 'unlocked'} successfully.",
+        "success")
 
     # For admin users, we need to use admin_login pattern instead of room_dashboard
     # to prevent auto-redirect to admin_dashboard
     if current_user.is_admin:
-        return render_template('room_dashboard.html',
-                             session_attributes=SessionAtributes(room_number, True),
-                             room_number=room_number,
-                             settings=settings,
-                             events=WindowEvent.query.filter_by(room_number=room_number)
-                                 .order_by(WindowEvent.timestamp.desc()).limit(10).all(),
-                             current_temp=random.uniform(20.0, 28.0))
+        return render_template(
+            'room_dashboard.html',
+            session_attributes=SessionAtributes(room_number, True),
+            room_number=room_number,
+            settings=settings,
+            events=WindowEvent.query.filter_by(
+                room_number=room_number).order_by(
+                    WindowEvent.timestamp.desc()).limit(10).all(),
+            current_temp=random.uniform(20.0, 28.0))
     else:
         return redirect(url_for('room_dashboard', room_number=room_number))
+
 
 @app.route('/toggle_max_temp_lock/<room_number>', methods=['POST'])
 @login_required
 def toggle_max_temp_lock(room_number):
     # Ensure only admin users can toggle the max temp lock
     if not current_user.is_admin:
-        flash("You do not have permission to lock/unlock the max temperature.", "danger")
+        flash("You do not have permission to lock/unlock the max temperature.",
+              "danger")
         return redirect(url_for('room_dashboard', room_number=room_number))
 
     # Fetch AC settings for this room
@@ -159,18 +165,22 @@ def toggle_max_temp_lock(room_number):
     settings.max_temp_locked = not settings.max_temp_locked
     db.session.commit()
 
-    flash(f"Max temperature setting {'locked' if settings.max_temp_locked else 'unlocked'} successfully.", "success")
+    flash(
+        f"Max temperature setting {'locked' if settings.max_temp_locked else 'unlocked'} successfully.",
+        "success")
 
     # For admin users, we need to use admin_login pattern instead of room_dashboard
     # to prevent auto-redirect to admin_dashboard
     if current_user.is_admin:
-        return render_template('room_dashboard.html',
-                             session_attributes=SessionAtributes(room_number, True),
-                             room_number=room_number,
-                             settings=settings,
-                             events=WindowEvent.query.filter_by(room_number=room_number)
-                                 .order_by(WindowEvent.timestamp.desc()).limit(10).all(),
-                             current_temp=random.uniform(20.0, 28.0))
+        return render_template(
+            'room_dashboard.html',
+            session_attributes=SessionAtributes(room_number, True),
+            room_number=room_number,
+            settings=settings,
+            events=WindowEvent.query.filter_by(
+                room_number=room_number).order_by(
+                    WindowEvent.timestamp.desc()).limit(10).all(),
+            current_temp=random.uniform(20.0, 28.0))
     else:
         return redirect(url_for('room_dashboard', room_number=room_number))
 
@@ -207,23 +217,27 @@ def update_settings():
         db.session.add(settings)
 
     # Check if admin is forcing the settings
-    force_update = request.form.get('force_update', default='false').lower() == 'true'
+    force_update = request.form.get('force_update',
+                                    default='false').lower() == 'true'
 
     try:
         if is_admin and force_update:
             # Admin is forcing settings
             if 'settings_locked' in request.form:
-                settings.settings_locked = request.form['settings_locked'] == '1'
+                settings.settings_locked = request.form[
+                    'settings_locked'] == '1'
                 flash('Settings access updated!', 'success')
             else:
-                settings.max_temperature = float(request.form['max_temperature'])
+                settings.max_temperature = float(
+                    request.form['max_temperature'])
                 settings.auto_shutoff = 'auto_shutoff' in request.form
                 settings.email_notifications = 'email_notifications' in request.form
                 flash('Settings enforced by admin!', 'success')
         elif room_number2:
             # Allow user to update settings if not forced
             try:
-                settings.max_temperature = float(request.form['max_temperature'])
+                settings.max_temperature = float(
+                    request.form['max_temperature'])
             except Exception:
                 pass
 
@@ -344,16 +358,16 @@ def get_temperature(room_number):
     # For now, generate mock temperature data
     # This will be replaced with actual sensor data from Raspberry Pi
     current_temp = random.uniform(20.0, 28.0)
-    
+
     # Check if temperature exceeds max temperature setting
     settings = ACSettings.query.filter_by(room_number=room_number).first()
     user = User.query.filter_by(room_number=room_number).first()
-    
+
     if settings and user and current_temp > settings.max_temperature and settings.email_notifications:
         # Import here to avoid circular imports
         from email_utils import send_temperature_alert
         send_temperature_alert(user.email, room_number, round(current_temp, 1))
-    
+
     return jsonify({
         'temperature': round(current_temp, 1),
         'timestamp': datetime.utcnow().isoformat()
@@ -386,36 +400,37 @@ def get_room_status(room_number):
         'ac_state':
         latest_event.ac_state if latest_event else 'unknown'
     })
-    
+
+
 @app.route('/test_email', methods=['GET'])
 @login_required
 def test_email():
     if not current_user.is_admin:
         return jsonify({'error': 'Unauthorized'}), 403
-        
+
     from email_utils import send_email
-    success = send_email(
-        "Test Email from AC Control System",
-        current_user.email,
-        "This is a test email from your AC Control System."
-    )
-    
+    success = send_email("Test Email from AC Control System",
+                         current_user.email,
+                         "This is a test email from your AC Control System.")
+
     if success:
         flash("Test email sent successfully!", "success")
     else:
-        flash("Failed to send test email. Check your email configuration.", "error")
-        
+        flash("Failed to send test email. Check your email configuration.",
+              "error")
+
     return redirect(url_for('admin_dashboard'))
+
 
 @app.route('/receive_data', methods=['POST'])
 def receive_data():
+    print("Received data")
     # Check if the incoming request has JSON data
     if request.is_json:
         data = request.get_json()  # Parse the incoming JSON data
         number = data.get('room_number')
         state = data.get('state')
-        settings = ACSettings.query.filter_by(
-            room_number=number).first()
+        settings = ACSettings.query.filter_by(room_number=number).first()
         if not settings:
             settings = ACSettings(room_number=number)
             db.session.add(settings)
@@ -429,17 +444,23 @@ def receive_data():
             state = "on"
 
         if settings.email_notifications:
-            user = User.query.filter_by(
-                room_number=number).first()
+            user = User.query.filter_by(room_number=number).first()
             if not user:
                 user = User(room_number=number)
                 db.session.add(settings)
                 db.session.commit()
                 print("Hmm")
             print(user.email)
-            send_notification(user.email)
-        
+            #send_notification(user.email)
+
         # Return a JSON response
-        return jsonify({"message": "Data received successfully", "state": state, "temperature": str(settings.max_temperature)}), 200
+        return jsonify({
+            "message": "Data received successfully",
+            "state": state,
+            "temperature": str(settings.max_temperature)
+        }), 200
     else:
-        return jsonify({"message": "Request must be JSON", "status": "error"}), 400
+        return jsonify({
+            "message": "Request must be JSON",
+            "status": "error"
+        }), 400
