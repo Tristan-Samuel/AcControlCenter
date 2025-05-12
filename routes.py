@@ -428,36 +428,53 @@ def receive_data():
     # Check if the incoming request has JSON data
     if request.is_json:
         data = request.get_json()  # Parse the incoming JSON data
-        number = data.get('room_number')
-        state = data.get('state')
-        settings = ACSettings.query.filter_by(room_number=number).first()
+        room_number = data.get('room_number')
+        window_state = data.get('window_state')
+        ac_state = data.get('ac_state', 'off')
+        temperature = data.get('temperature')
+        
+        settings = ACSettings.query.filter_by(room_number=room_number).first()
         if not settings:
-            settings = ACSettings(room_number=number)
+            settings = ACSettings(room_number=room_number)
             db.session.add(settings)
             db.session.commit()
 
-        print(f"Received number: {number}, state: {str(state)}")
+        print(f"Received data: room={room_number}, window={window_state}, ac={ac_state}, temp={temperature}")
+        
+        # Log the window event in the database
+        try:
+            # Create a WindowEvent instance to log the event
+            event = WindowEvent(
+                room_number=room_number,
+                window_state=window_state,
+                ac_state=ac_state,
+                temperature=float(temperature) if temperature else 22.0  # Default temperature if not provided
+            )
+            db.session.add(event)
+            db.session.commit()
+            print(f"Window event logged successfully: {event.id}")
+            
+            # Send notification if window is opened while AC is running
+            if window_state == 'opened' and ac_state == 'on' and settings.email_notifications:
+                user = User.query.filter_by(room_number=room_number).first()
+                if user:
+                    print(f"Sending notification to {user.email}")
+                    send_notification(user.email)
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error logging window event: {str(e)}")
+            # Continue processing even if logging fails
 
-        if state == "on":
-            state = "off"
-        else:
-            state = "on"
-
-        if settings.email_notifications:
-            user = User.query.filter_by(room_number=number).first()
-            if not user:
-                user = User(room_number=number)
-                db.session.add(settings)
-                db.session.commit()
-                print("Hmm")
-            print(user.email)
-            #send_notification(user.email)
+        # Determine new AC state based on settings
+        new_ac_state = ac_state
+        if window_state == 'opened' and ac_state == 'on' and settings.auto_shutoff:
+            new_ac_state = 'off'
 
         # Return a JSON response
         return jsonify({
-            "message": "Data received successfully",
-            "state": state,
-            "temperature": str(settings.max_temperature)
+            "message": "Data received and logged successfully",
+            "ac_state": new_ac_state,
+            "max_temperature": settings.max_temperature
         }), 200
     else:
         return jsonify({
