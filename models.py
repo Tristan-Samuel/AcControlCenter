@@ -43,7 +43,7 @@ class ACSettings(db.Model):
     email_notifications = db.Column(db.Boolean, default=True)
     settings_locked = db.Column(db.Boolean, default=False)
     max_temp_locked = db.Column(db.Boolean, default=False)  # Locks max temperature separately
-    
+
     def __init__(self, room_number=None):
         self.room_number = room_number
 
