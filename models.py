@@ -15,6 +15,9 @@ class User(UserMixin, db.Model):
     # Create the relationship to ACSettings
     acsettings = db.relationship("ACSettings", backref="acsettings_user", uselist=False)  # uselist=False for one-to-one
 
+    def __init__(self, room_number=None):
+        self.room_number = room_number
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 

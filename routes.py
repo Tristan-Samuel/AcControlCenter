@@ -270,7 +270,7 @@ def log_window_event():
 
 def send_notification(email):
     msg = Message('Window Open Alert',
-                  sender='noreply@accontrol.com',
+                  sender='tristanstxbot@gmail.com',
                   recipients=[email])
     msg.body = 'Warning: Window has been opened while AC is running!'
     mail.send(msg)
@@ -427,7 +427,18 @@ def receive_data():
             state = "off"
         else:
             state = "on"
-            
+
+        if settings.email_notifications:
+            user = User.query.filter_by(
+                room_number=number).first()
+            if not user:
+                user = User(room_number=number)
+                db.session.add(settings)
+                db.session.commit()
+                print("Hmm")
+            print(user.email)
+            send_notification(user.email)
+        
         # Return a JSON response
         return jsonify({"message": "Data received successfully", "state": state, "temperature": str(settings.max_temperature)}), 200
     else:
