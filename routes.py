@@ -231,6 +231,7 @@ def update_settings():
                 settings.max_temperature = float(
                     request.form['max_temperature'])
                 settings.auto_shutoff = 'auto_shutoff' in request.form
+                settings.shutoff_delay = int(request.form.get('shutoff_delay', 30))
                 settings.email_notifications = 'email_notifications' in request.form
                 flash('Settings enforced by admin!', 'success')
         elif room_number2:

@@ -50,6 +50,7 @@ class ACSettings(db.Model):
     room_number = db.Column(db.String(10), db.ForeignKey('user.room_number'))
     max_temperature = db.Column(db.Float, default=24.0)
     auto_shutoff = db.Column(db.Boolean, default=True)
+    shutoff_delay = db.Column(db.Integer, default=30)  # Delay in seconds before AC shuts off
     email_notifications = db.Column(db.Boolean, default=True)
     settings_locked = db.Column(db.Boolean, default=False)
     max_temp_locked = db.Column(db.Boolean, default=False)  # Locks max temperature separately
@@ -64,6 +65,16 @@ class WindowEvent(db.Model):
     window_state = db.Column(db.String(10))  # 'opened' or 'closed'
     ac_state = db.Column(db.String(10))  # 'on' or 'off'
     temperature = db.Column(db.Float)
+
+class PendingWindowEvent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    room_number = db.Column(db.String(10), db.ForeignKey('user.room_number'))
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    window_state = db.Column(db.String(10))  # 'opened' or 'closed'
+    ac_state = db.Column(db.String(10))  # 'on' or 'off'
+    temperature = db.Column(db.Float)
+    scheduled_action_time = db.Column(db.DateTime)  # When the action is scheduled to happen
+    processed = db.Column(db.Boolean, default=False)  # Whether this event has been processed
 
 class SessionAtributes():
     def __init__(self, room_number, is_admin):

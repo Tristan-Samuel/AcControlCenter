@@ -56,6 +56,14 @@
                                {% if settings.settings_locked and is_admin == False %}disabled{% endif %}>
                         <label class="form-check-label" for="auto_shutoff">Auto-shutoff when window opens</label>
                     </div>
+                    
+                    <div class="mb-3">
+                        <label for="shutoff_delay" class="form-label">Shutoff Delay (seconds)</label>
+                        <input type="number" class="form-control" id="shutoff_delay" name="shutoff_delay"
+                               value="{{ settings.shutoff_delay }}" min="0" max="300" step="5"
+                               {% if settings.settings_locked and is_admin == False %}disabled{% endif %}>
+                        <small class="form-text text-muted">Time to wait before shutting off AC after window opens (0-300 seconds)</small>
+                    </div>
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="email_notifications" name="email_notifications"
                                {% if settings.email_notifications %}checked{% endif %}
