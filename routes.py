@@ -74,11 +74,11 @@ def admin_login():
     current_temp = random.uniform(20.0, 28.0)
 
     return render_template('room_dashboard.html',
-                           session_attributes=SessionAtributes(room_number2, True),
-                          room_number=room_number2,
-                           settings=settings,
-                           events=events,
-                           current_temp=current_temp)
+                         is_admin=True,
+                         room_number=room_number2,
+                         settings=settings,
+                         events=events,
+                         current_temp=current_temp)
 
 
 @app.route('/room_dashboard')

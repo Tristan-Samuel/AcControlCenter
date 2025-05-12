@@ -13,10 +13,13 @@ class User(UserMixin, db.Model):
     room_number = db.Column(db.String(10), unique=True, nullable=True)  # Made nullable for admin users
 
     # Create the relationship to ACSettings
-    acsettings = db.relationship("ACSettings", backref="acsettings_user", uselist=False)  # uselist=False for one-to-one
+    acsettings = db.relationship("ACSettings", backref=db.backref("user", uselist=False), uselist=False)
 
-    def __init__(self, room_number=None):
+    def __init__(self, username=None, email=None, room_number=None, is_admin=False):
+        self.username = username
+        self.email = email
         self.room_number = room_number
+        self.is_admin = is_admin
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -40,9 +43,6 @@ class ACSettings(db.Model):
     email_notifications = db.Column(db.Boolean, default=True)
     settings_locked = db.Column(db.Boolean, default=False)
     max_temp_locked = db.Column(db.Boolean, default=False)  # Locks max temperature separately
-    
-    # Relationship back to User
-    user = db.relationship("User", backref="acsettings_user", uselist=False, overlaps="acsettings,acsettings_user")
     
     def __init__(self, room_number=None):
         self.room_number = room_number
