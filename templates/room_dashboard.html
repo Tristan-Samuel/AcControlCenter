@@ -13,6 +13,22 @@
                     <span data-current-temp>{{ "%.1f"|format(current_temp) }}°C</span>
                 </div>
                 <canvas id="temperatureChart"></canvas>
+                
+                <div class="mt-3">
+                    <h5>AC Control</h5>
+                    <div class="d-flex gap-2">
+                        <form method="POST" action="{{ url_for('force_ac_state', room_number=room_number, state='on') }}">
+                            <button type="submit" class="btn btn-success">
+                                <i data-feather="power" class="me-1"></i>Force Turn ON
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ url_for('force_ac_state', room_number=room_number, state='off') }}">
+                            <button type="submit" class="btn btn-danger">
+                                <i data-feather="power-off" class="me-1"></i>Force Turn OFF
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

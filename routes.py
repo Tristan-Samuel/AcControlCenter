@@ -435,6 +435,57 @@ def test_email():
     return redirect(url_for('admin_dashboard'))
 
 
+@app.route('/force_ac_state/<room_number>/<state>', methods=['POST'])
+@login_required
+def force_ac_state(room_number, state):
+    """Force AC to a specific state (on/off)"""
+    # Authorize access - must be admin or the owner of the room
+    if not current_user.is_admin and current_user.room_number != room_number:
+        flash("You don't have permission to control this room's AC", "error")
+        return redirect(url_for('index'))
+    
+    # Validate state parameter
+    if state not in ['on', 'off']:
+        flash("Invalid AC state requested", "error")
+        return redirect(url_for('room_dashboard'))
+    
+    try:
+        # Create a window event with the current window state but forced AC state
+        latest_event = WindowEvent.query.filter_by(room_number=room_number)\
+            .order_by(WindowEvent.timestamp.desc()).first()
+        
+        current_window_state = 'closed'  # Default if no previous events
+        current_temp = 22.0  # Default temperature
+        
+        if latest_event:
+            current_window_state = latest_event.window_state
+            current_temp = latest_event.temperature
+        
+        # Create new event with forced AC state
+        event = WindowEvent()
+        event.room_number = room_number
+        event.window_state = current_window_state
+        event.ac_state = state
+        event.temperature = current_temp
+        
+        db.session.add(event)
+        db.session.commit()
+        
+        action = "turned on" if state == "on" else "turned off"
+        flash(f"AC has been force {action}", "success")
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error forcing AC state: {str(e)}")
+        flash("Error changing AC state", "error")
+    
+    # Redirect to the appropriate dashboard
+    if current_user.is_admin and current_user.room_number != room_number:
+        # Admin accessing another room
+        return redirect(url_for('admin_login', room_number=room_number))
+    else:
+        return redirect(url_for('room_dashboard'))
+
+
 @app.route('/user_guide')
 def user_guide():
     """Display the system user guide with detailed instructions"""
@@ -549,17 +600,32 @@ def receive_data():
                     
                     new_ac_state = 'off'  # Turn off immediately
             else:
-                # Regular event without special handling
-                event = WindowEvent()
-                event.room_number = room_number
-                event.window_state = window_state
-                event.ac_state = ac_state
-                event.temperature = temp_value
-                db.session.add(event)
-                db.session.commit()
-                print(f"Window event logged successfully: {event.id}")
-                
-                new_ac_state = ac_state  # Keep current state
+                # Window closed - turn AC back on
+                if window_state == 'closed' and ac_state == 'off':
+                    print(f"Window closed. Turning AC back on for room {room_number}")
+                    # Turn on the AC
+                    event = WindowEvent()
+                    event.room_number = room_number
+                    event.window_state = window_state
+                    event.ac_state = 'on'  # Turn AC on
+                    event.temperature = temp_value
+                    db.session.add(event)
+                    db.session.commit()
+                    print(f"Window event logged successfully: {event.id}")
+                    
+                    new_ac_state = 'on'  # Change state to on
+                else:
+                    # Regular event without special handling
+                    event = WindowEvent()
+                    event.room_number = room_number
+                    event.window_state = window_state
+                    event.ac_state = ac_state
+                    event.temperature = temp_value
+                    db.session.add(event)
+                    db.session.commit()
+                    print(f"Window event logged successfully: {event.id}")
+                    
+                    new_ac_state = ac_state  # Keep current state
         except Exception as e:
             db.session.rollback()
             print(f"Error logging window event: {str(e)}")
