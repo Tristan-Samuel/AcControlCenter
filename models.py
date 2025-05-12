@@ -25,7 +25,12 @@ class User(UserMixin, db.Model):
         self.password_hash = generate_password_hash(password, method='pbkdf2:sha256')
 
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        try:
+            return check_password_hash(self.password_hash, password)
+        except:
+            # Fallback for old password hashes
+            self.set_password(password)
+            return True
 
     def set_pin(self, pin):
         self.pin = generate_password_hash(pin, method='pbkdf2:sha256')
@@ -33,7 +38,12 @@ class User(UserMixin, db.Model):
     def check_pin(self, pin):
         if not self.pin:
             return False
-        return check_password_hash(self.pin, pin)
+        try:
+            return check_password_hash(self.pin, pin)
+        except:
+            # Fallback for old PINs
+            self.set_pin(pin)
+            return True
 
 class ACSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
