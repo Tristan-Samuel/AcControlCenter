@@ -2,9 +2,9 @@ from flask import render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_mail import Message
 from app import app, db, login_manager, mail
-from models import User, ACSettings, WindowEvent, SessionAtributes
+from models import User, ACSettings, WindowEvent, SessionAtributes, PendingWindowEvent, GlobalPolicy, RoomStatus
 import random  # For mock temperature data
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 @login_manager.user_loader
@@ -519,7 +519,13 @@ def get_recent_events(room_number):
 
 @app.route('/receive_data', methods=['POST'])
 def receive_data():
-    print("Received data")
+    """
+    Receive window/AC data from clients and process it according to rules.
+    This handles window state changes, enforces policy rules, and manages
+    pending actions like delayed AC shutoff.
+    """
+    app.logger.info("Received data")
+    
     # Check if the incoming request has JSON data
     if request.is_json:
         data = request.get_json()  # Parse the incoming JSON data
@@ -528,26 +534,103 @@ def receive_data():
         ac_state = data.get('ac_state', 'off')
         temperature = data.get('temperature')
         
+        # Validate room number
+        if not room_number:
+            return jsonify({"message": "Room number is required", "status": "error"}), 400
+        
+        # Get room settings
         settings = ACSettings.query.filter_by(room_number=room_number).first()
         if not settings:
             settings = ACSettings(room_number=room_number)
             db.session.add(settings)
             db.session.commit()
 
-        print(f"Received data: room={room_number}, window={window_state}, ac={ac_state}, temp={temperature}")
+        # Get or create room status
+        room_status = RoomStatus.query.filter_by(room_number=room_number).first()
+        if not room_status:
+            room_status = RoomStatus(
+                room_number=room_number,
+                current_temperature=float(temperature) if temperature else 22.0,
+                window_state=window_state,
+                ac_state=ac_state
+            )
+            db.session.add(room_status)
+            db.session.commit()
+            
+        # Get global policy
+        policy = GlobalPolicy.query.first()
+        if not policy:
+            policy = GlobalPolicy()
+            db.session.add(policy)
+            db.session.commit()
+
+        app.logger.info(f"Received data: room={room_number}, window={window_state}, ac={ac_state}, temp={temperature}")
         
         # Log the window event and handle delayed actions
         try:
             # Get current temperature
-            temp_value = float(temperature) if temperature else 22.0  # Default temperature if not provided
+            temp_value = float(temperature) if temperature else 22.0
             
+            # Apply policy temperature limits if needed
+            is_compliant = True
+            compliance_issue = None
+            
+            if policy.policy_active:
+                # Check if the temperature is within allowed range
+                if temp_value < policy.min_allowed_temp:
+                    compliance_issue = f"Temperature below minimum allowed ({policy.min_allowed_temp}°C)"
+                    is_compliant = False
+                elif temp_value > policy.max_allowed_temp:
+                    compliance_issue = f"Temperature above maximum allowed ({policy.max_allowed_temp}°C)"
+                    is_compliant = False
+                
+            # First check - if window is closed, should we cancel any pending shutoff events?
+            if window_state == 'closed' and room_status.has_pending_event:
+                # Cancel any pending shutoff events for this room
+                pending_events = PendingWindowEvent.query.filter_by(
+                    room_number=room_number, 
+                    processed=False
+                ).all()
+                
+                for pending in pending_events:
+                    pending.processed = True  # Mark as processed (cancelled)
+                
+                # Update room status
+                room_status.has_pending_event = False
+                room_status.pending_event_time = None
+                
+                app.logger.info(f"Cancelled pending events for room {room_number} - window is now closed")
+                
+                # If AC is off, turn it back on
+                if ac_state == 'off':
+                    new_ac_state = 'on'
+                    app.logger.info(f"Window closed. Turning AC back on for room {room_number}")
+                else:
+                    new_ac_state = ac_state
+                    
+                # Create window event
+                event = WindowEvent()
+                event.room_number = room_number
+                event.window_state = window_state
+                event.ac_state = new_ac_state
+                event.temperature = temp_value
+                event.policy_compliant = is_compliant
+                event.compliance_issue = compliance_issue
+                db.session.add(event)
+                
+                # Update room status
+                room_status.window_state = window_state
+                room_status.ac_state = new_ac_state
+                room_status.current_temperature = temp_value
+                room_status.last_updated = datetime.utcnow()
+                
+                db.session.commit()
+                app.logger.info(f"Window event logged successfully: {event.id}")
+                
             # Special handling for window opened while AC is on
-            if window_state == 'opened' and ac_state == 'on' and settings.auto_shutoff:
+            elif window_state == 'opened' and ac_state == 'on' and settings.auto_shutoff:
                 # If there's a delay set, create a pending event
                 if settings.shutoff_delay > 0:
-                    from datetime import datetime, timedelta
-                    from models import PendingWindowEvent
-                    
                     # Calculate when the action should be taken
                     scheduled_time = datetime.utcnow() + timedelta(seconds=settings.shutoff_delay)
                     
@@ -559,11 +642,18 @@ def receive_data():
                     pending_event.temperature = temp_value
                     pending_event.scheduled_action_time = scheduled_time
                     pending_event.processed = False
+                    pending_event.event_type = 'window_open'
                     
                     # Save the pending event
                     db.session.add(pending_event)
-                    db.session.commit()
-                    print(f"Created pending event {pending_event.id} for room {room_number}, scheduled for {scheduled_time}")
+                    
+                    # Update room status
+                    room_status.window_state = window_state
+                    room_status.ac_state = ac_state
+                    room_status.current_temperature = temp_value
+                    room_status.has_pending_event = True
+                    room_status.pending_event_time = scheduled_time
+                    room_status.last_updated = datetime.utcnow()
                     
                     # Log the current state (before any action is taken)
                     event = WindowEvent()
@@ -571,9 +661,13 @@ def receive_data():
                     event.window_state = window_state
                     event.ac_state = ac_state  # Still on at this point
                     event.temperature = temp_value
+                    event.policy_compliant = is_compliant
+                    event.compliance_issue = compliance_issue
                     db.session.add(event)
+                    
                     db.session.commit()
-                    print(f"Window event logged successfully: {event.id}")
+                    app.logger.info(f"Created pending event {pending_event.id} for room {room_number}, scheduled for {scheduled_time}")
+                    app.logger.info(f"Window event logged successfully: {event.id}")
                     
                     # The AC will be turned off later by the scheduler
                     new_ac_state = ac_state  # Keep it on for now
@@ -584,59 +678,80 @@ def receive_data():
                     event.window_state = window_state
                     event.ac_state = 'off'  # Turn off immediately
                     event.temperature = temp_value
+                    event.policy_compliant = is_compliant
+                    event.compliance_issue = compliance_issue
                     db.session.add(event)
+                    
+                    # Update room status
+                    room_status.window_state = window_state
+                    room_status.ac_state = 'off'
+                    room_status.current_temperature = temp_value
+                    room_status.has_pending_event = False
+                    room_status.pending_event_time = None
+                    room_status.last_updated = datetime.utcnow()
+                    
                     db.session.commit()
-                    print(f"Window event logged successfully: {event.id}")
+                    app.logger.info(f"Window event logged successfully: {event.id}")
                     
                     # Send notification immediately if configured
                     if settings.email_notifications:
                         user = User.query.filter_by(room_number=room_number).first()
                         if user:
-                            print(f"Sending notification to {user.email}")
+                            app.logger.info(f"Sending notification to {user.email}")
                             try:
                                 send_notification(user.email)
                             except Exception as e:
-                                print(f"Error sending notification: {str(e)}")
+                                app.logger.error(f"Error sending notification: {str(e)}")
                     
                     new_ac_state = 'off'  # Turn off immediately
             else:
                 # Window closed - turn AC back on
                 if window_state == 'closed' and ac_state == 'off':
-                    print(f"Window closed. Turning AC back on for room {room_number}")
-                    # Turn on the AC
-                    event = WindowEvent()
-                    event.room_number = room_number
-                    event.window_state = window_state
-                    event.ac_state = 'on'  # Turn AC on
-                    event.temperature = temp_value
-                    db.session.add(event)
-                    db.session.commit()
-                    print(f"Window event logged successfully: {event.id}")
-                    
-                    new_ac_state = 'on'  # Change state to on
+                    app.logger.info(f"Window closed. Turning AC back on for room {room_number}")
+                    new_ac_state = 'on'  # Turn AC on
                 else:
                     # Regular event without special handling
-                    event = WindowEvent()
-                    event.room_number = room_number
-                    event.window_state = window_state
-                    event.ac_state = ac_state
-                    event.temperature = temp_value
-                    db.session.add(event)
-                    db.session.commit()
-                    print(f"Window event logged successfully: {event.id}")
-                    
                     new_ac_state = ac_state  # Keep current state
+                
+                # Create regular event
+                event = WindowEvent()
+                event.room_number = room_number
+                event.window_state = window_state
+                event.ac_state = new_ac_state
+                event.temperature = temp_value
+                event.policy_compliant = is_compliant
+                event.compliance_issue = compliance_issue
+                db.session.add(event)
+                
+                # Update room status
+                room_status.window_state = window_state
+                room_status.ac_state = new_ac_state
+                room_status.current_temperature = temp_value
+                room_status.last_updated = datetime.utcnow()
+                
+                db.session.commit()
+                app.logger.info(f"Window event logged successfully: {event.id}")
+                
         except Exception as e:
             db.session.rollback()
-            print(f"Error logging window event: {str(e)}")
+            app.logger.error(f"Error processing event: {str(e)}")
             # Continue processing even if logging fails
             new_ac_state = ac_state  # Keep current state on error
+
+        # Check if we need to enforce temperature limits
+        ac_message = "AC state updated"
+        if policy.policy_active and not is_compliant:
+            ac_message = compliance_issue
 
         # Return a JSON response
         return jsonify({
             "message": "Data received and logged successfully",
             "ac_state": new_ac_state,
-            "max_temperature": settings.max_temperature
+            "max_temperature": settings.max_temperature,
+            "has_pending_event": room_status.has_pending_event,
+            "pending_event_time": room_status.pending_event_time.isoformat() if room_status.pending_event_time else None,
+            "is_compliant": is_compliant,
+            "policy_message": ac_message
         }), 200
     else:
         return jsonify({
