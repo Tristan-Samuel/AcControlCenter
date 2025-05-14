@@ -256,11 +256,80 @@ def time_in_range(start, end, current):
         return start <= current <= end
     else:
         return start <= current or current <= end
+        
+def check_temperature_compliance():
+    """Check temperature compliance with policy and schedule auto-shutoff if violation persists"""
+    with app.app_context():
+        from models import RoomStatus, GlobalPolicy, PendingWindowEvent, ACSettings, User
+        
+        # Get the global policy
+        policy = GlobalPolicy.query.first()
+        if not policy or not policy.policy_active:
+            return
+            
+        # Get all rooms with AC turned on
+        rooms_with_ac_on = RoomStatus.query.filter_by(ac_state='on').all()
+        
+        for room in rooms_with_ac_on:
+            # Skip rooms with pending events
+            if room.has_pending_event:
+                continue
+                
+            # Check if temperature violates policy
+            is_compliant = True
+            compliance_issue = None
+            
+            if room.current_temperature < policy.min_allowed_temp:
+                is_compliant = False
+                compliance_issue = f"Temperature too low (min: {policy.min_allowed_temp}°C)"
+                
+            elif room.current_temperature > policy.max_allowed_temp:
+                is_compliant = False
+                compliance_issue = f"Temperature too high (max: {policy.max_allowed_temp}°C)"
+            
+            # Handle compliance status change
+            if not is_compliant:
+                # If this is a new violation, mark the start time
+                if room.non_compliant_since is None:
+                    room.non_compliant_since = datetime.utcnow()
+                    room.policy_violation_type = compliance_issue
+                    db.session.commit()
+                    logging.info(f"Room {room.room_number} temperature non-compliant: {compliance_issue}")
+                else:
+                    # Check if violation has persisted for 10 seconds
+                    violation_time = datetime.utcnow() - room.non_compliant_since
+                    if violation_time.total_seconds() >= 10 and not room.has_pending_event:
+                        # Schedule an AC shutoff
+                        room.has_pending_event = True
+                        scheduled_time = datetime.utcnow() + timedelta(seconds=1)  # Almost immediate
+                        room.pending_event_time = scheduled_time
+                        
+                        # Create pending event
+                        pending_event = PendingWindowEvent(
+                            room_number=room.room_number,
+                            window_state=room.window_state,
+                            ac_state=room.ac_state,
+                            temperature=room.current_temperature,
+                            scheduled_action_time=scheduled_time,
+                            event_type='temperature_violation'
+                        )
+                        db.session.add(pending_event)
+                        db.session.commit()
+                        
+                        logging.info(f"Scheduled AC shutoff for room {room.room_number} due to temperature policy violation")
+            else:
+                # Reset compliance tracking if temperature is now compliant
+                if room.non_compliant_since is not None:
+                    room.non_compliant_since = None
+                    room.policy_violation_type = None
+                    db.session.commit()
+                    logging.info(f"Room {room.room_number} temperature now compliant")
 
 # Start scheduler
 scheduler.add_job(check_pending_window_events, 'interval', seconds=10)  # Check every 10 seconds
 scheduler.add_job(check_scheduled_shutoffs, 'interval', minutes=5)  # Check every 5 minutes
 scheduler.add_job(update_compliance_metrics, 'interval', hours=1)  # Update metrics hourly
+scheduler.add_job(check_temperature_compliance, 'interval', seconds=5)  # Check temperature compliance every 5 seconds
 scheduler.start()
 
 with app.app_context():
