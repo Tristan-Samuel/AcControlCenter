@@ -65,18 +65,35 @@ def logout():
 def admin_login():
     room_number2 = request.form.get('room_number')
     settings = ACSettings.query.filter_by(room_number=room_number2).first()
+    
+    if not settings:
+        settings = ACSettings(room_number=room_number2)
+        db.session.add(settings)
+        db.session.commit()
 
     events = WindowEvent.query.filter_by(room_number=room_number2)\
         .order_by(WindowEvent.timestamp.desc()).limit(10).all()
+    
+    # Get or create room status 
+    room_status = RoomStatus.query.filter_by(room_number=room_number2).first()
+    if not room_status:
+        room_status = RoomStatus(room_number=room_number2)
+        db.session.add(room_status)
+        db.session.commit()
 
-    # Mock current temperature
-    current_temp = random.uniform(20.0, 28.0)
+    # Use real temperature from room status
+    current_temp = room_status.current_temperature
+    
+    # Create session attributes
+    session_attributes = SessionAtributes(room_number2, True)
 
     return render_template('room_dashboard.html',
-                           is_admin=True,
                            room_number=room_number2,
                            settings=settings,
                            events=events,
+                           room_status=room_status,
+                           compliance_score=settings.compliance_score,
+                           session_attributes=session_attributes,
                            current_temp=current_temp)
 
 
@@ -623,6 +640,204 @@ def force_ac_state(room_number, state):
 def user_guide():
     """Display the system user guide with detailed instructions"""
     return render_template('user_guide.html')
+
+
+@app.route('/test_interface')
+@login_required
+def test_interface():
+    """Testing interface for window/AC behavior"""
+    is_admin = current_user.is_admin
+    
+    if is_admin:
+        # Admin can choose any room
+        room_number = request.args.get('room_number', '')
+    else:
+        # Regular users only see their assigned room
+        room_number = current_user.room_number
+    
+    # Get room status if it exists
+    status = None
+    if room_number:
+        status = RoomStatus.query.filter_by(room_number=room_number).first()
+    
+    # Get window events
+    events = []
+    if room_number:
+        events = WindowEvent.query.filter_by(room_number=room_number) \
+            .order_by(WindowEvent.timestamp.desc()).limit(10).all()
+    
+    return render_template('test_interface.html',
+                          room_number=room_number,
+                          is_admin=is_admin,
+                          status=status,
+                          events=events)
+
+
+@app.route('/submit_test_data', methods=['POST'])
+@login_required
+def submit_test_data():
+    """Handle test data submission from the test interface"""
+    room_number = request.form.get('room_number')
+    window_state = request.form.get('window_state')
+    ac_state = request.form.get('ac_state')
+    temperature = float(request.form.get('temperature', 22.0))
+    
+    # Validate inputs
+    if not room_number or not window_state or not ac_state:
+        flash('Missing required fields', 'error')
+        return redirect(url_for('test_interface', room_number=room_number))
+    
+    # Verify this user can submit data for this room
+    if not current_user.is_admin and current_user.room_number != room_number:
+        flash('You can only submit data for your assigned room', 'error')
+        return redirect(url_for('test_interface'))
+    
+    # Submit data using the same endpoint as real sensors would use
+    data = {
+        'room_number': room_number,
+        'window_state': window_state,
+        'ac_state': ac_state,
+        'temperature': temperature
+    }
+    
+    # Process data using the receive_data endpoint
+    result = receive_data_internal(data)
+    
+    if result.get('success', False):
+        flash('Test data submitted successfully', 'success')
+    else:
+        flash(f'Error: {result.get("message", "Unknown error")}', 'error')
+    
+    return redirect(url_for('test_interface', room_number=room_number))
+
+
+def receive_data_internal(data):
+    """Internal version of receive_data for direct calling"""
+    try:
+        room_number = data.get('room_number')
+        window_state = data.get('window_state')
+        ac_state = data.get('ac_state')
+        temperature = float(data.get('temperature', 22.0))
+        
+        # Validate data
+        if not room_number or not window_state or not ac_state:
+            return {'success': False, 'message': 'Missing required fields'}
+        
+        # Convert to lowercase for consistency
+        window_state = window_state.lower()
+        ac_state = ac_state.lower()
+        
+        # Create window event to log this data point
+        event = WindowEvent(
+            room_number=room_number,
+            window_state=window_state,
+            ac_state=ac_state,
+            temperature=temperature
+        )
+        
+        # Check compliance
+        policy = GlobalPolicy.query.first()
+        is_compliant = True
+        compliance_issue = None
+        
+        if policy and policy.policy_active:
+            # Check if temperature is within policy bounds
+            if temperature < policy.min_allowed_temp:
+                is_compliant = False
+                compliance_issue = f"Temperature below minimum ({policy.min_allowed_temp}°C)"
+            elif temperature > policy.max_allowed_temp:
+                is_compliant = False
+                compliance_issue = f"Temperature above maximum ({policy.max_allowed_temp}°C)"
+                
+            # Check for window open with AC on - policy violation
+            if window_state == 'opened' and ac_state == 'on':
+                is_compliant = False
+                compliance_issue = "Window open with AC running"
+        
+        # Set compliance status on event
+        event.policy_compliant = is_compliant
+        event.compliance_issue = compliance_issue
+        
+        db.session.add(event)
+        
+        # Get or create room status
+        status = RoomStatus.query.filter_by(room_number=room_number).first()
+        if not status:
+            status = RoomStatus(room_number=room_number)
+            db.session.add(status)
+        
+        # Update room status
+        status.current_temperature = temperature
+        status.window_state = window_state
+        status.ac_state = ac_state
+        status.last_updated = datetime.utcnow()
+        
+        # Process rules for window/AC combinations
+        settings = ACSettings.query.filter_by(room_number=room_number).first()
+        if not settings:
+            # Create default settings if they don't exist
+            settings = ACSettings(room_number=room_number)
+            db.session.add(settings)
+        
+        # Check for window opened with AC on - potential automatic shutoff
+        if window_state == 'opened' and ac_state == 'on' and settings.auto_shutoff:
+            # Record pending event for delayed AC shutoff
+            shutoff_delay = settings.shutoff_delay  # Delay in seconds
+            scheduled_time = datetime.utcnow() + timedelta(seconds=shutoff_delay)
+            
+            # Create pending window event for delayed AC shutoff
+            pending_event = PendingWindowEvent(
+                room_number=room_number,
+                window_state=window_state,
+                ac_state='off',  # Target state after the delay
+                temperature=temperature,
+                scheduled_action_time=scheduled_time,
+                event_type='auto_shutoff'
+            )
+            db.session.add(pending_event)
+            
+            # Update room status to show pending event
+            status.has_pending_event = True
+            status.pending_event_time = scheduled_time
+        
+        # Check for window closed and AC off - potential automatic turn on
+        elif window_state == 'closed' and ac_state == 'off' and settings.auto_shutoff:
+            # Cancel any pending shutoff events as window is now closed
+            pending_events = PendingWindowEvent.query.filter_by(
+                room_number=room_number, 
+                processed=False,
+                event_type='auto_shutoff'
+            ).all()
+            
+            for pending in pending_events:
+                db.session.delete(pending)
+            
+            # No pending event now
+            status.has_pending_event = False
+            status.pending_event_time = None
+            
+            # Turn AC back on automatically
+            status.ac_state = 'on'
+        
+        # Check for pending events and update status
+        else:
+            pending_count = PendingWindowEvent.query.filter_by(
+                room_number=room_number,
+                processed=False
+            ).count()
+            
+            if pending_count == 0:
+                status.has_pending_event = False
+                status.pending_event_time = None
+        
+        db.session.commit()
+        
+        return {'success': True, 'message': 'Data processed successfully'}
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error processing data: {str(e)}")
+        return {'success': False, 'message': str(e)}
 
 
 @app.route('/api/recent_events/<room_number>')

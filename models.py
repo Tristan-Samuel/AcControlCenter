@@ -118,6 +118,27 @@ class RoomStatus(db.Model):
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
     has_pending_event = db.Column(db.Boolean, default=False)  # Whether there's a pending action for this room
     pending_event_time = db.Column(db.DateTime, nullable=True)  # When the pending action will occur
+    
+    def __init__(self, **kwargs):
+        """Initialize a room status with kwargs support"""
+        self.room_number = kwargs.get('room_number')
+        
+        if 'current_temperature' in kwargs:
+            self.current_temperature = kwargs.get('current_temperature')
+        
+        if 'window_state' in kwargs:
+            self.window_state = kwargs.get('window_state')
+            
+        if 'ac_state' in kwargs:
+            self.ac_state = kwargs.get('ac_state')
+            
+        if 'last_updated' in kwargs:
+            self.last_updated = kwargs.get('last_updated')
+        else:
+            self.last_updated = datetime.utcnow()
+            
+        self.has_pending_event = kwargs.get('has_pending_event', False)
+        self.pending_event_time = kwargs.get('pending_event_time')
 
 class SessionAtributes():
     def __init__(self, room_number, is_admin):

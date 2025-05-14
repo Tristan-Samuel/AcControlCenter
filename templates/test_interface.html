@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>System Testing Interface</h4>
+                <a href="{{ url_for('room_dashboard') if not is_admin else url_for('admin_dashboard') }}" class="btn btn-secondary">
+                    <i data-feather="arrow-left" class="me-1"></i>Back to Dashboard
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i data-feather="info" class="me-2"></i>
+                    This interface allows you to simulate window and AC events to test system behavior.
+                </div>
+                
+                <form method="POST" action="{{ url_for('submit_test_data') }}" class="mb-4">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="room_number" class="form-label">Room Number</label>
+                                <input type="text" class="form-control" id="room_number" name="room_number" 
+                                       value="{{ room_number }}" {{ 'readonly' if not is_admin }}>
+                                <small class="form-text text-muted">The room to send data for</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="temperature" class="form-label">Temperature (°C)</label>
+                                <input type="number" class="form-control" id="temperature" name="temperature" 
+                                       value="22.0" min="15" max="35" step="0.5">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Window State</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="window_state" id="window_opened" value="opened">
+                                    <label class="form-check-label" for="window_opened">Opened</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="window_state" id="window_closed" value="closed" checked>
+                                    <label class="form-check-label" for="window_closed">Closed</label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">AC State</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="ac_state" id="ac_on" value="on" checked>
+                                    <label class="form-check-label" for="ac_on">ON</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="ac_state" id="ac_off" value="off">
+                                    <label class="form-check-label" for="ac_off">OFF</label>
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i data-feather="send" class="me-1"></i>Submit Test Data
+                            </button>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h5>Current Room Status</h5>
+                                </div>
+                                <div class="card-body">
+                                    {% if status %}
+                                    <table class="table">
+                                        <tr>
+                                            <th>Room Number:</th>
+                                            <td>{{ status.room_number }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Temperature:</th>
+                                            <td>{{ "%.1f"|format(status.current_temperature) }}°C</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Window State:</th>
+                                            <td>
+                                                <span class="badge {{ 'bg-warning' if status.window_state == 'opened' else 'bg-info' }}">
+                                                    {{ status.window_state|capitalize }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>AC State:</th>
+                                            <td>
+                                                <span class="badge {{ 'bg-success' if status.ac_state == 'on' else 'bg-secondary' }}">
+                                                    {{ status.ac_state|upper }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>Last Updated:</th>
+                                            <td>{{ status.last_updated.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Pending Action:</th>
+                                            <td>
+                                                {% if status.has_pending_event %}
+                                                <span class="badge bg-danger">
+                                                    AC shutoff at {{ status.pending_event_time.strftime('%H:%M:%S') }}
+                                                </span>
+                                                {% else %}
+                                                <span class="badge bg-success">None</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    {% else %}
+                                    <div class="alert alert-warning">
+                                        No status information available for this room.
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                
+                <h5 class="mt-4">Recent Events</h5>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Window</th>
+                                <th>AC</th>
+                                <th>Temperature</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for event in events %}
+                            <tr>
+                                <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                <td>{{ event.window_state }}</td>
+                                <td>{{ event.ac_state }}</td>
+                                <td>{{ "%.1f"|format(event.temperature) }}°C</td>
+                                <td>
+                                    {% if event.policy_compliant == False %}
+                                    <span class="badge bg-warning" title="{{ event.compliance_issue }}">
+                                        Policy Violation
+                                    </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

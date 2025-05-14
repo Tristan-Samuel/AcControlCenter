@@ -2,103 +2,128 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-12">
+    <div class="col-lg-8">
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h4>Global Policy Management</h4>
+                <h4>Global Policy Settings</h4>
                 <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
                     <i data-feather="arrow-left" class="me-1"></i>Back to Admin Dashboard
                 </a>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('save_policy') }}">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h5>Temperature Policy</h5>
+                <form method="POST" action="{{ url_for('save_policy') }}" id="policyForm">
+                    <div class="row mb-4">
+                        <div class="col-12">
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input" type="checkbox" id="policy_active" name="policy_active" 
                                        {% if policy.policy_active %}checked{% endif %}>
-                                <label class="form-check-label" for="policy_active">Enable global temperature policy</label>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="min_allowed_temp" class="form-label">Minimum Temperature (°C)</label>
-                                    <input type="number" class="form-control" id="min_allowed_temp" name="min_allowed_temp"
-                                           value="{{ policy.min_allowed_temp }}" min="16" max="30" step="0.5">
-                                    <small class="form-text text-muted">Lowest allowed temperature setting</small>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="max_allowed_temp" class="form-label">Maximum Temperature (°C)</label>
-                                    <input type="number" class="form-control" id="max_allowed_temp" name="max_allowed_temp"
-                                           value="{{ policy.max_allowed_temp }}" min="18" max="32" step="0.5">
-                                    <small class="form-text text-muted">Highest allowed temperature setting</small>
-                                </div>
-                            </div>
-                            
-                            <h5 class="mt-4">Energy Conservation</h5>
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" id="energy_conservation_active" name="energy_conservation_active" 
-                                       {% if policy.energy_conservation_active %}checked{% endif %}>
-                                <label class="form-check-label" for="energy_conservation_active">Enable energy conservation mode</label>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="conservation_threshold" class="form-label">Conservation Temperature Threshold (°C)</label>
-                                <input type="number" class="form-control" id="conservation_threshold" name="conservation_threshold"
-                                       value="{{ policy.conservation_threshold }}" min="18" max="30" step="0.5">
-                                <small class="form-text text-muted">Temperature at which conservation mode activates</small>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <h5>Scheduled Shutoff</h5>
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" id="scheduled_shutoff_active" name="scheduled_shutoff_active" 
-                                       {% if policy.scheduled_shutoff_active %}checked{% endif %}>
-                                <label class="form-check-label" for="scheduled_shutoff_active">Enable scheduled AC shutoff</label>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="scheduled_shutoff_time" class="form-label">Evening Shutoff Time</label>
-                                    <input type="time" class="form-control" id="scheduled_shutoff_time" name="scheduled_shutoff_time"
-                                           value="{{ policy.scheduled_shutoff_time.strftime('%H:%M') if policy.scheduled_shutoff_time else '22:00' }}">
-                                    <small class="form-text text-muted">Time to automatically shut off ACs</small>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="scheduled_startup_time" class="form-label">Morning Startup Time</label>
-                                    <input type="time" class="form-control" id="scheduled_startup_time" name="scheduled_startup_time"
-                                           value="{{ policy.scheduled_startup_time.strftime('%H:%M') if policy.scheduled_startup_time else '07:00' }}">
-                                    <small class="form-text text-muted">Time to resume normal AC operation</small>
-                                </div>
-                            </div>
-                            
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" id="apply_shutoff_weekends" name="apply_shutoff_weekends" 
-                                       {% if policy.apply_shutoff_weekends %}checked{% endif %}>
-                                <label class="form-check-label" for="apply_shutoff_weekends">Apply shutoff on weekends</label>
-                            </div>
-                            
-                            <div class="alert alert-info">
-                                <i data-feather="info" class="me-2"></i>
-                                Individual rooms can be exempted from the schedule on their settings page.
+                                <label class="form-check-label" for="policy_active">
+                                    <strong>Policy Active</strong>
+                                </label>
+                                <div class="form-text">Enable or disable all global policies</div>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="mt-4">
+                    <h5>Temperature Policy</h5>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="min_allowed_temp" class="form-label">Minimum Allowed Temperature (°C)</label>
+                                <input type="number" class="form-control" id="min_allowed_temp" name="min_allowed_temp" 
+                                       value="{{ policy.min_allowed_temp }}" min="16" max="24" step="0.5">
+                                <div class="form-text">Temperatures below this will trigger policy warnings</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="max_allowed_temp" class="form-label">Maximum Allowed Temperature (°C)</label>
+                                <input type="number" class="form-control" id="max_allowed_temp" name="max_allowed_temp" 
+                                       value="{{ policy.max_allowed_temp }}" min="20" max="30" step="0.5">
+                                <div class="form-text">Temperatures above this will trigger policy warnings</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h5>Energy Conservation</h5>
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="energy_conservation_active" 
+                                       name="energy_conservation_active" {% if policy.energy_conservation_active %}checked{% endif %}>
+                                <label class="form-check-label" for="energy_conservation_active">
+                                    <strong>Conservation Mode Active</strong>
+                                </label>
+                                <div class="form-text">Enable energy conservation features</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="conservation_threshold" class="form-label">Conservation Threshold (°C)</label>
+                                <input type="number" class="form-control" id="conservation_threshold" name="conservation_threshold" 
+                                       value="{{ policy.conservation_threshold }}" min="18" max="28" step="0.5">
+                                <div class="form-text">Target temperature for conservation mode</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h5>Scheduled Shutoff</h5>
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="scheduled_shutoff_active" 
+                                       name="scheduled_shutoff_active" {% if policy.scheduled_shutoff_active %}checked{% endif %}>
+                                <label class="form-check-label" for="scheduled_shutoff_active">
+                                    <strong>Scheduled Shutoff Active</strong>
+                                </label>
+                                <div class="form-text">Automatically shut off AC during non-business hours</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="scheduled_shutoff_time" class="form-label">Shutoff Time</label>
+                                <input type="time" class="form-control" id="scheduled_shutoff_time" name="scheduled_shutoff_time" 
+                                       value="{{ policy.scheduled_shutoff_time.strftime('%H:%M') }}">
+                                <div class="form-text">Time when AC will automatically turn off</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="scheduled_startup_time" class="form-label">Startup Time</label>
+                                <input type="time" class="form-control" id="scheduled_startup_time" name="scheduled_startup_time" 
+                                       value="{{ policy.scheduled_startup_time.strftime('%H:%M') }}">
+                                <div class="form-text">Time when AC will be allowed to turn on again</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="apply_shutoff_weekends" 
+                                       name="apply_shutoff_weekends" {% if policy.apply_shutoff_weekends %}checked{% endif %}>
+                                <label class="form-check-label" for="apply_shutoff_weekends">
+                                    <strong>Apply On Weekends</strong>
+                                </label>
+                                <div class="form-text">Whether scheduled shutoff applies on weekends</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">
                             <i data-feather="save" class="me-1"></i>Save Policy Settings
                         </button>
+                        <a href="{{ url_for('test_interface') }}" class="btn btn-info">
+                            <i data-feather="activity" class="me-1"></i>Test Interface
+                        </a>
                     </div>
                 </form>
             </div>
         </div>
-        
-        <div class="card">
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card mb-4">
             <div class="card-header">
-                <h4>Room Compliance Dashboard</h4>
+                <h4>Room Compliance</h4>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -106,21 +131,34 @@
                         <thead>
                             <tr>
                                 <th>Room</th>
-                                <th>Compliance Score</th>
-                                <th>Window Open Time</th>
-                                <th>Temp. Deviation</th>
-                                <th>Current Status</th>
+                                <th>Status</th>
+                                <th>Score</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for room in rooms %}
                             {% set settings = room.acsettings %}
-                            {% set status = room_statuses.get(room.room_number) %}
+                            {% if settings %}
                             <tr>
                                 <td>{{ room.room_number }}</td>
                                 <td>
-                                    <div class="progress" style="height: 20px;">
+                                    {% if room_statuses.get(room.room_number) %}
+                                    <div class="d-flex flex-column">
+                                        <span class="badge {% if room_statuses[room.room_number].ac_state == 'on' %}bg-success{% else %}bg-secondary{% endif %} mb-1">
+                                            AC: {{ room_statuses[room.room_number].ac_state|upper }}
+                                        </span>
+                                        <span class="badge {% if room_statuses[room.room_number].window_state == 'opened' %}bg-warning{% else %}bg-info{% endif %}">
+                                            Window: {{ room_statuses[room.room_number].window_state|capitalize }}
+                                        </span>
+                                    </div>
+                                    {% else %}
+                                    <span class="badge bg-secondary">No data</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if settings %}
+                                    <div class="progress" style="height: 20px; width: 80px;">
                                         {% set score_class = 'bg-success' if settings.compliance_score >= 80 else 'bg-warning' if settings.compliance_score >= 50 else 'bg-danger' %}
                                         <div class="progress-bar {{ score_class }}" role="progressbar" 
                                              style="width: {{ settings.compliance_score }}%;" 
@@ -128,36 +166,48 @@
                                             {{ "%.0f"|format(settings.compliance_score) }}%
                                         </div>
                                     </div>
-                                </td>
-                                <td>{{ settings.window_open_minutes }} minutes</td>
-                                <td>{{ "%.1f"|format(settings.temperature_deviation) }}°C</td>
-                                <td>
-                                    {% if status %}
-                                        <span class="badge {% if status.ac_state == 'on' %}bg-success{% else %}bg-secondary{% endif %}">
-                                            AC: {{ status.ac_state|upper }}
-                                        </span>
-                                        <span class="badge {% if status.window_state == 'opened' %}bg-warning{% else %}bg-info{% endif %}">
-                                            Window: {{ status.window_state|capitalize }}
-                                        </span>
-                                        {% if status.has_pending_event %}
-                                        <span class="badge bg-danger">
-                                            Pending Action
-                                        </span>
-                                        {% endif %}
                                     {% else %}
-                                        <span class="badge bg-secondary">Unknown</span>
+                                    <span class="badge bg-secondary">N/A</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="{{ url_for('admin_login', room_number=room.room_number) }}" class="btn btn-sm btn-primary">
-                                        Manage
-                                    </a>
+                                    <form method="POST" action="{{ url_for('admin_login') }}">
+                                        <input type="hidden" name="room_number" value="{{ room.room_number }}">
+                                        <button type="submit" class="btn btn-sm btn-primary">
+                                            <i data-feather="settings" class="me-1"></i>Settings
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
+                            {% endif %}
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h4>Compliance Overview</h4>
+            </div>
+            <div class="card-body">
+                <p>
+                    <strong>Compliance Criteria:</strong>
+                </p>
+                <ul>
+                    <li>Room temperature within policy bounds</li>
+                    <li>AC turned off when windows are open</li>
+                    <li>AC turned off during scheduled shutoff hours</li>
+                    <li>AC set to conservation temperature during energy saving mode</li>
+                </ul>
+                <p>
+                    <strong>Policy Enforcement:</strong>
+                </p>
+                <p>
+                    Policies are enforced automatically for all rooms, but administrators can override
+                    certain settings for individual rooms when necessary.
+                </p>
             </div>
         </div>
     </div>
