@@ -1,10 +1,19 @@
-from flask import render_template, redirect, url_for, flash, request, jsonify
+from flask import render_template, redirect, url_for, flash, request, jsonify, make_response
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_mail import Message
 from app import app, db, login_manager, mail
 from models import User, ACSettings, WindowEvent, SessionAtributes, PendingWindowEvent, GlobalPolicy, RoomStatus
 import random  # For mock temperature data
 from datetime import datetime, timedelta, time
+
+
+def time_in_range(start, end, current):
+    """Returns whether current is in the range [start, end]"""
+    # Handle the case where the range crosses midnight
+    if start <= end:
+        return start <= current <= end
+    else:
+        return start <= current or current <= end
 
 
 @login_manager.user_loader
@@ -255,6 +264,177 @@ def admin_dashboard():
     return render_template('admin_dashboard.html', 
                           rooms=rooms, 
                           room_statuses=room_statuses)
+
+
+@app.route('/event_logs')
+@login_required
+def event_logs():
+    """Full event log viewing system for administrators"""
+    if not current_user.is_admin:
+        flash('You must be an admin to access the event logs', 'error')
+        return redirect(url_for('room_dashboard'))
+    
+    # Get filter parameters
+    page = request.args.get('page', 1, type=int)
+    selected_room = request.args.get('room', 'all')
+    event_type = request.args.get('event_type', 'all')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    
+    # Default to 50 items per page
+    per_page = 50
+    
+    # Build the query with filters
+    query = WindowEvent.query
+    
+    # Apply room filter
+    if selected_room != 'all':
+        query = query.filter_by(room_number=selected_room)
+    
+    # Apply event type filter
+    if event_type == 'window_opened':
+        query = query.filter_by(window_state='opened')
+    elif event_type == 'window_closed':
+        query = query.filter_by(window_state='closed')
+    elif event_type == 'ac_on':
+        query = query.filter_by(ac_state='on')
+    elif event_type == 'ac_off':
+        query = query.filter_by(ac_state='off')
+    elif event_type == 'policy_violation':
+        query = query.filter_by(policy_compliant=False)
+    
+    # Apply date filters
+    if date_from:
+        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+        query = query.filter(WindowEvent.timestamp >= date_from_obj)
+    
+    if date_to:
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
+        # Add a day to include the full end date
+        date_to_obj = date_to_obj + timedelta(days=1)
+        query = query.filter(WindowEvent.timestamp < date_to_obj)
+    
+    # Order by timestamp descending
+    query = query.order_by(WindowEvent.timestamp.desc())
+    
+    # Get total count and paginate
+    total_events = query.count()
+    events = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    # Calculate total pages
+    total_pages = (total_events + per_page - 1) // per_page
+    
+    # Get all rooms for the room filter dropdown
+    rooms = User.query.filter(User.room_number.isnot(None)).all()
+    
+    return render_template(
+        'event_logs.html',
+        events=events.items,
+        total_events=total_events,
+        page=page,
+        total_pages=total_pages,
+        rooms=rooms,
+        selected_room=selected_room,
+        event_type=event_type,
+        date_from=date_from,
+        date_to=date_to
+    )
+
+
+@app.route('/api/export_events')
+@login_required
+def export_events():
+    """Export events to CSV format"""
+    if not current_user.is_admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    # Get filter parameters
+    format_type = request.args.get('format', 'csv')
+    selected_room = request.args.get('room', 'all')
+    event_type = request.args.get('event_type', 'all')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    
+    # Build the query with filters (similar to event_logs route)
+    query = WindowEvent.query
+    
+    # Apply room filter
+    if selected_room != 'all':
+        query = query.filter_by(room_number=selected_room)
+    
+    # Apply event type filter
+    if event_type == 'window_opened':
+        query = query.filter_by(window_state='opened')
+    elif event_type == 'window_closed':
+        query = query.filter_by(window_state='closed')
+    elif event_type == 'ac_on':
+        query = query.filter_by(ac_state='on')
+    elif event_type == 'ac_off':
+        query = query.filter_by(ac_state='off')
+    elif event_type == 'policy_violation':
+        query = query.filter_by(policy_compliant=False)
+    
+    # Apply date filters
+    if date_from:
+        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+        query = query.filter(WindowEvent.timestamp >= date_from_obj)
+    
+    if date_to:
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
+        # Add a day to include the full end date
+        date_to_obj = date_to_obj + timedelta(days=1)
+        query = query.filter(WindowEvent.timestamp < date_to_obj)
+    
+    # Order by timestamp descending
+    events = query.order_by(WindowEvent.timestamp.desc()).all()
+    
+    if format_type == 'csv':
+        # Create CSV response
+        import csv
+        from io import StringIO
+        
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow(['ID', 'Room', 'Timestamp', 'Window State', 'AC State', 
+                        'Temperature', 'Policy Compliant', 'Compliance Issue'])
+        
+        # Write data rows
+        for event in events:
+            writer.writerow([
+                event.id,
+                event.room_number,
+                event.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                event.window_state,
+                event.ac_state,
+                f"{event.temperature:.1f}",
+                'Yes' if event.policy_compliant else 'No',
+                event.compliance_issue or ''
+            ])
+        
+        # Create response
+        response = make_response(output.getvalue())
+        response.headers["Content-Disposition"] = f"attachment; filename=event_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        response.headers["Content-type"] = "text/csv"
+        return response
+    
+    else:
+        # Return JSON by default
+        events_data = []
+        for event in events:
+            events_data.append({
+                'id': event.id,
+                'room_number': event.room_number,
+                'timestamp': event.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                'window_state': event.window_state,
+                'ac_state': event.ac_state,
+                'temperature': event.temperature,
+                'policy_compliant': event.policy_compliant,
+                'compliance_issue': event.compliance_issue
+            })
+        
+        return jsonify({'events': events_data})
 
 
 @app.route('/policy_management')
