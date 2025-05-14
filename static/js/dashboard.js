@@ -34,8 +34,8 @@ async function updateTemperatures() {
                     // AC on
                     statusElement.innerHTML = '<span class="badge bg-primary">AC On</span>';
                 } else {
-                    // Normal state
-                    statusElement.innerHTML = '<span class="badge bg-success">Normal</span>';
+                    // AC off state
+                    statusElement.innerHTML = '<span class="badge bg-secondary">AC Off</span>';
                 }
             }
         } catch (error) {
