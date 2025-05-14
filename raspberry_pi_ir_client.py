@@ -159,8 +159,58 @@ def handle_ir_command(code):
     """Process received IR command"""
     logger.info(f"IR command received: {code}")
     
+    # Report the command to the server and ask for permission
+    # This is a more secure approach, letting the server decide what to do
+    allowed, server_response = request_server_permission(code)
+    
+    if not allowed:
+        logger.warning(f"Command {code} intercepted by server: {server_response.get('reason', 'Policy violation')}")
+        # Provide user feedback (beep, LED flash, etc.)
+        
+        # If the server wants us to do something else instead, do it
+        if 'alternative_action' in server_response:
+            logger.info(f"Executing server-recommended alternative: {server_response['alternative_action']}")
+            execute_server_action(server_response['alternative_action'])
+            
+        return False
+    else:
+        # Server allowed the command, execute it locally
+        execute_command(code)
+        
+        # Update server with new state
+        send_status_update()
+        
+        return True
+
+def request_server_permission(code):
+    """Ask the server for permission to execute a command"""
+    try:
+        payload = {
+            "room_number": ROOM_NUMBER,
+            "command": code,
+            "window_state": current_status["window_state"],
+            "ac_state": current_status["ac_state"],
+            "temperature": current_status["temperature"]
+        }
+        
+        response = requests.post(f"{SERVER_URL}/api/check_command", json=payload, timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("allowed", False), data
+        else:
+            # Connection issue or server error - fail closed (more secure)
+            logger.error(f"Server returned error {response.status_code}. Failing closed.")
+            return False, {"reason": "Server communication error"}
+            
+    except Exception as e:
+        logger.error(f"Error requesting permission: {e}")
+        # On any exception, fail closed (secure)
+        return False, {"reason": "Connection error"}
+
+def execute_command(code):
+    """Execute a command after server approval"""
     # Example mapping of IR codes to actions
-    # In a real implementation, you would decode the IR signals properly
     commands = {
         "POWER": toggle_power,
         "TEMP_UP": lambda: change_temperature(1),
@@ -169,29 +219,42 @@ def handle_ir_command(code):
         "FAN": cycle_fan_speed
     }
     
-    # Check if we should intercept this command
-    should_intercept, reason = check_server_policy(code)
-    
-    if should_intercept:
-        logger.warning(f"Command {code} intercepted: {reason}")
-        # Optionally provide user feedback (beep, LED flash, etc.)
-        
-        # Report the interception to the server
-        send_ir_command_event(code)
-        
-        return False
+    # Process the command
+    if code in commands:
+        logger.info(f"Executing approved command: {code}")
+        commands[code]()
     else:
-        # Process the command
-        if code in commands:
-            commands[code]()
+        logger.warning(f"Unknown command code: {code}")
+        
+def execute_server_action(action):
+    """Execute an action recommended by the server"""
+    if action == "TURN_OFF":
+        if current_status["ac_state"] == "on":
+            toggle_power()  # Turn off the AC
             
-            # Report the command to the server
-            send_ir_command_event(code)
-        
-        # Update server with new state
+    elif action == "TURN_ON":
+        if current_status["ac_state"] == "off":
+            toggle_power()  # Turn on the AC
+            
+    elif action.startswith("SET_TEMP_"):
+        try:
+            temp = int(action.split("_")[-1])
+            # Set temperature to what the server wants
+            current_temp = ac_state["temperature"]
+            if temp > current_temp:
+                for _ in range(temp - current_temp):
+                    change_temperature(1)
+            elif temp < current_temp:
+                for _ in range(current_temp - temp):
+                    change_temperature(-1)
+        except (ValueError, IndexError):
+            logger.error(f"Invalid temperature in server action: {action}")
+            
+    elif action == "REPORT_STATUS":
+        # Just report status without changing anything
         send_status_update()
-        
-        return True
+    else:
+        logger.warning(f"Unknown server action: {action}")
 
 # Check if command should be intercepted based on server policy
 def check_server_policy(command):
