@@ -120,7 +120,7 @@
             <h3 class="h5">Force AC Controls</h3>
             <p>For situations where you need direct control over the AC, use the force control buttons:</p>
             <ul>
-                <li><strong>Force Turn ON:</strong> Immediately turns on the AC regardless of window state</li>
+                <li><strong>Force Turn ON:</strong> Immediately turns on the AC regardless of window state (can be disabled by administrators)</li>
                 <li><strong>Force Turn OFF:</strong> Immediately turns off the AC regardless of window state</li>
             </ul>
             
@@ -131,9 +131,38 @@
                 <li>When special climate conditions are desired temporarily</li>
             </ul>
             
-            <div class="alert alert-info">
-                <strong>Note:</strong> When using force controls, you are temporarily overriding the automatic window-based controls. Normal automatic behavior will resume with the next window state change.
+            <div class="alert alert-warning">
+                <strong>Important:</strong> If your room temperature is too low according to policy settings, the system will automatically adjust or shut off the AC after 10 seconds to maintain policy compliance.
             </div>
+            
+            <div class="alert alert-info">
+                <strong>Note:</strong> Administrators may disable the Force Turn ON feature to prevent policy violations. In this case, you will only be able to manually turn the AC off.
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title h4">Temperature Compliance</h2>
+        </div>
+        <div class="card-body">
+            <h3 class="h5">Policy Enforcement</h3>
+            <p>The system enforces temperature policies set by administrators:</p>
+            <ul>
+                <li><strong>Temperature Limits:</strong> Your AC will be adjusted if the temperature falls outside the allowed range</li>
+                <li><strong>Auto-Correction:</strong> If the temperature is too low for 10 seconds, the AC will automatically shut off</li>
+                <li><strong>Compliance Score:</strong> Your room's compliance with policies is tracked and displayed as a score</li>
+            </ul>
+            
+            <h3 class="h5">Testing Interface</h3>
+            <p>The system includes a testing interface that allows you to:</p>
+            <ul>
+                <li>Simulate window opening/closing events</li>
+                <li>Test temperature changes and AC responses</li>
+                <li>Verify automatic shutoff behavior</li>
+                <li>See how policy compliance is enforced</li>
+            </ul>
+            <p>To access the testing interface, click the "Test Window/AC" button from your room dashboard.</p>
         </div>
     </div>
     

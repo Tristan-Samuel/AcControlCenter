@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">AC Control System - Admin Guide</h1>
+    
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 class="card-title h4">Administrator Overview</h2>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary">
+                <i data-feather="arrow-left" class="me-1"></i>Return to Admin Dashboard
+            </a>
+        </div>
+        <div class="card-body">
+            <p>This comprehensive guide covers the advanced administrative features of the AC Control System. As an administrator, you have additional capabilities to monitor, control, and enforce policy across all rooms in your institution.</p>
+            
+            <div class="alert alert-primary">
+                <strong>Administrator Responsibilities:</strong> Monitor energy usage, enforce compliance with temperature policies, resolve issues for room users, and optimize system settings for both comfort and energy efficiency.
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title h4">Admin Dashboard Features</h2>
+        </div>
+        <div class="card-body">
+            <h3 class="h5">Room Overview</h3>
+            <p>The admin dashboard displays a comprehensive overview of all rooms in the system:</p>
+            <ul>
+                <li><strong>Room Status:</strong> Current window state, AC status, and temperature for each room</li>
+                <li><strong>Compliance Indicators:</strong> Visual indicators show which rooms are violating policy</li>
+                <li><strong>Quick Access:</strong> One-click access to individual room dashboards</li>
+            </ul>
+            
+            <h3 class="h5">Policy Management</h3>
+            <p>Access the policy management interface to configure system-wide settings:</p>
+            <ul>
+                <li><strong>Temperature Limits:</strong> Define minimum and maximum allowed temperatures</li>
+                <li><strong>Energy Conservation:</strong> Set temperature thresholds for conservation mode</li>
+                <li><strong>Scheduled Shutoffs:</strong> Configure automatic AC shutdown during non-business hours</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title h4">Room-Level Administrative Controls</h2>
+        </div>
+        <div class="card-body">
+            <h3 class="h5">Settings Management</h3>
+            <p>When accessing individual room dashboards, administrators have access to additional controls:</p>
+            <ul>
+                <li><strong>Lock Settings:</strong> Prevent room users from changing any settings</li>
+                <li><strong>Lock Maximum Temperature:</strong> Lock only the temperature setting while allowing other changes</li>
+                <li><strong>Override Settings:</strong> Apply changes regardless of lock status</li>
+                <li><strong>Disable Force Turn ON:</strong> Prevent users from manually turning on AC when policy violations occur</li>
+            </ul>
+            
+            <h3 class="h5">Compliance Management</h3>
+            <p>For each room, you can:</p>
+            <ul>
+                <li>View detailed compliance history and metrics</li>
+                <li>Override automatic shutoff settings if needed</li>
+                <li>Grant exemptions from global policies for special circumstances</li>
+                <li>Reset compliance scores when issues are addressed</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title h4">Global Policy Configuration</h2>
+        </div>
+        <div class="card-body">
+            <h3 class="h5">Temperature Policy</h3>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Setting</th>
+                        <th>Description</th>
+                        <th>Recommended Values</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Minimum Allowed Temperature</td>
+                        <td>Lowest allowed temperature setting for any room</td>
+                        <td>18-20°C (64-68°F)</td>
+                    </tr>
+                    <tr>
+                        <td>Maximum Allowed Temperature</td>
+                        <td>Highest allowed temperature setting for any room</td>
+                        <td>24-26°C (75-79°F)</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <h3 class="h5">Energy Conservation Mode</h3>
+            <p>When enabled, this mode enforces stricter temperature limits during specific periods:</p>
+            <ul>
+                <li><strong>Conservation Threshold:</strong> Target temperature during conservation mode</li>
+                <li><strong>Activation Options:</strong> Schedule-based, manual, or triggered by external factors</li>
+            </ul>
+            
+            <h3 class="h5">Scheduled Shutoff</h3>
+            <p>Configure automatic AC shutdown during non-business hours:</p>
+            <ul>
+                <li><strong>Shutoff Time:</strong> When AC units should automatically turn off</li>
+                <li><strong>Startup Time:</strong> When AC units are allowed to turn back on</li>
+                <li><strong>Weekend Settings:</strong> Whether to apply the same schedule on weekends</li>
+            </ul>
+            
+            <div class="alert alert-warning">
+                <strong>Important:</strong> Room-specific exemptions can be granted from the individual room dashboards for rooms that require special treatment (e.g., server rooms, laboratories).
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title h4">Advanced Features & Controls</h2>
+        </div>
+        <div class="card-body">
+            <h3 class="h5">Temperature Compliance Enforcement</h3>
+            <p>The system features automatic enforcement of temperature policies:</p>
+            <ul>
+                <li><strong>10-Second Rule:</strong> If a room's temperature remains non-compliant for 10 seconds, the AC will automatically adjust or shut off</li>
+                <li><strong>Automatic Notifications:</strong> Email alerts will be sent to room users when violations occur</li>
+                <li><strong>Compliance Tracking:</strong> Each room has a compliance score based on adherence to policies</li>
+            </ul>
+            
+            <h3 class="h5">Force ON Restriction</h3>
+            <p>Administrators can disable the Force Turn ON feature to prevent users from manually overriding policy:</p>
+            <ol>
+                <li>Access the individual room's settings</li>
+                <li>Find the "Force ON Allowed" setting</li>
+                <li>Toggle the setting to "No" to disable this feature</li>
+                <li>Users will still be able to manually turn the AC off, but not on</li>
+            </ol>
+            
+            <h3 class="h5">Testing & Simulation</h3>
+            <p>The system includes a comprehensive testing interface for administrators:</p>
+            <ul>
+                <li>Simulate window events and temperature changes</li>
+                <li>Test policy enforcement without affecting actual rooms</li>
+                <li>Verify automatic shutoff timing and behavior</li>
+                <li>Confirm email notification functionality</li>
+            </ul>
+            <p>Access the testing interface by clicking "Test Interface" from the policy management page.</p>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title h4">Best Practices & Recommendations</h2>
+        </div>
+        <div class="card-body">
+            <h3 class="h5">Temperature Policy Optimization</h3>
+            <ul>
+                <li><strong>Seasonal Adjustments:</strong> Consider updating temperature policies seasonally for optimal comfort and efficiency</li>
+                <li><strong>Gradual Changes:</strong> Implement policy changes gradually to allow users to adapt</li>
+                <li><strong>Data-Driven Decisions:</strong> Use compliance reports and energy usage data to refine policies</li>
+            </ul>
+            
+            <h3 class="h5">User Management</h3>
+            <ul>
+                <li><strong>Clear Communication:</strong> Inform users about policy changes before implementing them</li>
+                <li><strong>Training:</strong> Provide training on system features and energy-saving practices</li>
+                <li><strong>Feedback Collection:</strong> Regularly solicit feedback from users on comfort and system effectiveness</li>
+            </ul>
+            
+            <h3 class="h5">System Maintenance</h3>
+            <ul>
+                <li><strong>Regular Audits:</strong> Perform periodic audits of room settings and compliance</li>
+                <li><strong>Data Cleanup:</strong> Archive old event data to maintain system performance</li>
+                <li><strong>Sensor Verification:</strong> Regularly verify temperature sensor accuracy</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="text-center mb-4">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary">Return to Admin Dashboard</a>
+        <a href="{{ url_for('policy_management') }}" class="btn btn-success ms-2">Go to Policy Management</a>
+    </div>
+</div>
+{% endblock %}
