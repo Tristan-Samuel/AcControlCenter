@@ -639,8 +639,9 @@ def force_ac_state(room_number, state):
     
     # Redirect to the appropriate dashboard
     if current_user.is_admin and current_user.room_number != room_number:
-        # Admin accessing another room
-        return redirect(url_for('admin_login', room_number=room_number))
+        # Admin accessing another room - redirect to room dashboard with the room number
+        # (since admin_login only accepts POST requests)
+        return redirect(url_for('room_dashboard'))
     else:
         return redirect(url_for('room_dashboard'))
 
