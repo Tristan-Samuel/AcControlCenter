@@ -740,6 +740,11 @@ def get_room_status(room_number):
     non_compliant_since = None
     if room_status.non_compliant_since:
         non_compliant_since = room_status.non_compliant_since.isoformat()
+        
+    # Format pending_event_time for serialization if it exists
+    pending_event_time = None
+    if room_status.pending_event_time:
+        pending_event_time = room_status.pending_event_time.isoformat()
 
     return jsonify({
         'max_temperature': settings.max_temperature,
@@ -749,9 +754,111 @@ def get_room_status(room_number):
         'ac_state': room_status.ac_state,
         'temperature': room_status.current_temperature,
         'has_pending_event': room_status.has_pending_event,
+        'pending_event_time': pending_event_time,
         'non_compliant_since': non_compliant_since,
         'policy_violation_type': room_status.policy_violation_type
     })
+
+
+@app.route('/api/send_command/<room_number>', methods=['POST'])
+@login_required
+def send_command(room_number):
+    """Send command to a Raspberry Pi client"""
+    # Authorize access - must be admin or the owner of the room
+    if not current_user.is_admin and current_user.room_number != room_number:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    # Get command data
+    data = request.get_json()
+    if not data or 'command' not in data:
+        return jsonify({'error': 'Command is required'}), 400
+        
+    command = data.get('command')
+    
+    # Get room status
+    status = RoomStatus.query.filter_by(room_number=room_number).first()
+    if not status:
+        return jsonify({'error': 'Room not found or not reporting status'}), 404
+        
+    # Process the command
+    if command == 'turn_off':
+        # Force the AC to turn off
+        status.has_pending_event = True
+        status.pending_event_time = datetime.now()
+        status.policy_violation_type = 'Manual override - Turn OFF'
+        db.session.commit()
+        
+        # Log the event
+        event = WindowEvent(
+            room_number=room_number,
+            window_state=status.window_state,
+            ac_state='off',  # Record target state
+            temperature=status.current_temperature,
+            compliance_issue='Manual AC turn OFF command'
+        )
+        db.session.add(event)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Command queued for execution. AC will be turned off when client next connects.'
+        })
+        
+    elif command == 'turn_on':
+        # Force the AC to turn on
+        status.has_pending_event = True
+        status.pending_event_time = datetime.now()
+        status.policy_violation_type = 'Manual override - Turn ON'
+        db.session.commit()
+        
+        # Log the event
+        event = WindowEvent(
+            room_number=room_number,
+            window_state=status.window_state,
+            ac_state='on',  # Record target state
+            temperature=status.current_temperature,
+            compliance_issue='Manual AC turn ON command'
+        )
+        db.session.add(event)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Command queued for execution. AC will be turned on when client next connects.'
+        })
+        
+    elif command.startswith('set_temp_'):
+        try:
+            # Parse the temperature from the command (e.g., set_temp_24)
+            temp = float(command.split('_')[-1])
+            
+            # Add a pending event for the client
+            status.has_pending_event = True
+            status.pending_event_time = datetime.now()
+            status.policy_violation_type = f'Manual temperature set to {temp}°C'
+            db.session.commit()
+            
+            # Log the event
+            event = WindowEvent(
+                room_number=room_number,
+                window_state=status.window_state,
+                ac_state=status.ac_state,
+                temperature=status.current_temperature,
+                compliance_issue=f'Manual temperature set command: {temp}°C'
+            )
+            db.session.add(event)
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': f'Command queued for execution. Temperature will be set to {temp}°C when client next connects.'
+            })
+            
+        except (ValueError, IndexError):
+            return jsonify({'error': 'Invalid temperature format'}), 400
+    
+    else:
+        return jsonify({'error': 'Unknown command'}), 400
 
 
 @app.route('/test_email', methods=['GET'])
@@ -1193,9 +1300,13 @@ def check_policy(room_number):
     return jsonify({
         'intercept': intercept,
         'reason': reason,
+        'action': action,  # Include any pending action for the client to execute
         'policy': {
             'min_temp': policy.min_allowed_temp if policy.policy_active else None,
-            'max_temp': policy.max_allowed_temp if policy.policy_active else None
+            'max_temp': policy.max_allowed_temp if policy.policy_active else None,
+            'scheduled_shutoff': policy.scheduled_shutoff_active,
+            'shutoff_time': policy.scheduled_shutoff_time.strftime('%H:%M') if policy.scheduled_shutoff_time else None,
+            'startup_time': policy.scheduled_startup_time.strftime('%H:%M') if policy.scheduled_startup_time else None
         }
     })
 
