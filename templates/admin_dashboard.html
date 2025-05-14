@@ -38,7 +38,7 @@
                             <tr>
                                 <td>{{ room.room_number }}</td>
                                 <td id="temp-{{ room.room_number }}">--°F</td>
-                                <td>{{ "%.1f"|format(settings.min_temperature) }}°F</td>
+                                <td>{{ "%.1f"|format(settings.min_temperature * 9/5 + 32) }}°F</td>
                                 <td>
                                     <i data-feather="{{ 'check-circle' if settings.auto_shutoff else 'x-circle' }}"></i>
                                 </td>

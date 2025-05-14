@@ -103,7 +103,7 @@
                     <div class="mb-3">
                         <label for="min_temperature" class="form-label">Minimum Temperature (°F)</label>
                         <input type="number" class="form-control" id="min_temperature" name="min_temperature"
-                               value="{{ settings.min_temperature | round(1) }}" step="1" min="65" max="86"
+                               value="{{ (settings.min_temperature * 9/5 + 32) | round(1) }}" step="1" min="65" max="86"
                                {% if settings.min_temp_locked and is_admin == False %}disabled{% endif %}>
                     </div>
                     

@@ -758,13 +758,9 @@ def get_temperature(room_number):
 
 
 @app.route('/api/room_status/<room_number>')
-@login_required
 def get_room_status(room_number):
     # Import temperature conversion utility
     from temperature_utils import celsius_to_fahrenheit
-    
-    if not current_user.is_admin and current_user.room_number != room_number:
-        return jsonify({'error': 'Unauthorized'}), 403
 
     # Get room status for real-time data
     room_status = RoomStatus.query.filter_by(room_number=room_number).first()
@@ -1258,11 +1254,7 @@ def receive_data_internal(data):
 
 
 @app.route('/api/recent_events/<room_number>')
-@login_required
 def get_recent_events(room_number):
-    # Authorize access - must be admin or the owner of the room
-    if not current_user.is_admin and current_user.room_number != room_number:
-        return jsonify({'error': 'Unauthorized'}), 403
         
     # Import temperature conversion utility
     from temperature_utils import celsius_to_fahrenheit
@@ -1446,12 +1438,19 @@ def receive_data():
                     compliance_issue = None
                     
                     if policy and policy.policy_active:
+                        # Import temperature conversion utility
+                        from temperature_utils import celsius_to_fahrenheit
+                        
+                        min_temp_f = celsius_to_fahrenheit(policy.min_allowed_temp)
+                        max_temp_f = celsius_to_fahrenheit(policy.max_allowed_temp)
+                        requested_temp_f = celsius_to_fahrenheit(requested_temp)
+                        
                         if requested_temp < policy.min_allowed_temp:
                             is_compliant = False
-                            compliance_issue = f"Temperature below minimum ({policy.min_allowed_temp}°C)"
+                            compliance_issue = f"Temperature below minimum: {requested_temp_f:.1f}°F (min: {min_temp_f:.1f}°F)"
                         elif requested_temp > policy.max_allowed_temp:
                             is_compliant = False
-                            compliance_issue = f"Temperature above maximum ({policy.max_allowed_temp}°C)"
+                            compliance_issue = f"Temperature above maximum: {requested_temp_f:.1f}°F (max: {max_temp_f:.1f}°F)"
                     
                     # Log the event
                     event = WindowEvent(

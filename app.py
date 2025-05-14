@@ -283,7 +283,10 @@ def check_temperature_compliance():
             if room.current_temperature < policy.min_allowed_temp:
                 # Temperature too cold - this is our main concern for AC systems
                 is_compliant = False
-                compliance_issue = f"Temperature too cold (min: {policy.min_allowed_temp}°C)"
+                from temperature_utils import celsius_to_fahrenheit
+                min_temp_f = celsius_to_fahrenheit(policy.min_allowed_temp)
+                current_temp_f = celsius_to_fahrenheit(room.current_temperature)
+                compliance_issue = f"Temperature too cold: {current_temp_f:.1f}°F (min: {min_temp_f:.1f}°F)"
             
             # Handle compliance status change
             if not is_compliant:
