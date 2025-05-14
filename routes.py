@@ -861,6 +861,19 @@ def send_command(room_number):
         return jsonify({'error': 'Unknown command'}), 400
 
 
+@app.route('/api/tunnel_url', methods=['GET'])
+def tunnel_url():
+    """Return current public URL for clients"""
+    # Import here to avoid circular import
+    from ngrok_tunnel import get_public_url
+    
+    public_url = get_public_url()
+    return jsonify({
+        "url": public_url,
+        "status": "active" if public_url else "inactive"
+    })
+
+
 @app.route('/test_email', methods=['GET'])
 @login_required
 def test_email():

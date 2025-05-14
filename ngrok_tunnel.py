@@ -53,11 +53,13 @@ def start_tunnel(port=5000):
     
     try:
         # Create HTTP tunnel - convert port to string for pyngrok
-        tunnel = ngrok.connect(str(port), "http")
+        tunnel = ngrok.connect(addr=str(port), proto="http")
         
         # Handle public URL property
-        if tunnel and tunnel.public_url:
-            public_url = tunnel.public_url.replace("http://", "https://")
+        if tunnel and hasattr(tunnel, 'public_url') and tunnel.public_url:
+            public_url = tunnel.public_url
+            if public_url.startswith("http://"):
+                public_url = public_url.replace("http://", "https://")
             
             logger.info(f"Ngrok tunnel established: {public_url}")
             logger.info(f"Forwarding to local port: {port}")
@@ -77,17 +79,19 @@ def start_tunnel(port=5000):
 
 def stop_tunnel():
     """Stop the active ngrok tunnel"""
-    global tunnel, is_running
+    global tunnel, is_running, public_url
     
-    if tunnel:
+    if tunnel and hasattr(tunnel, 'public_url') and tunnel.public_url:
         try:
             ngrok.disconnect(tunnel.public_url)
             logger.info("Ngrok tunnel disconnected")
         except exception.PyngrokError as e:
             logger.error(f"Error disconnecting tunnel: {e}")
             
-        tunnel = None
-        is_running = False
+    # Reset all state variables
+    tunnel = None
+    public_url = None
+    is_running = False
 
 def monitor_tunnel():
     """Background thread to keep tunnel alive and monitor status"""
