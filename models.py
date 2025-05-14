@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from app import db
@@ -45,6 +45,26 @@ class User(UserMixin, db.Model):
             self.set_pin(pin)
             return True
 
+class GlobalPolicy(db.Model):
+    """Global policies set by administrators for all rooms"""
+    id = db.Column(db.Integer, primary_key=True)
+    min_allowed_temp = db.Column(db.Float, default=18.0)  # Minimum allowed temperature setting
+    max_allowed_temp = db.Column(db.Float, default=26.0)  # Maximum allowed temperature setting
+    policy_active = db.Column(db.Boolean, default=True)    # Whether the policy is currently active
+    
+    # Scheduled shutoff times
+    scheduled_shutoff_active = db.Column(db.Boolean, default=False)
+    scheduled_shutoff_time = db.Column(db.Time, default=time(22, 0))  # 10 PM default
+    scheduled_startup_time = db.Column(db.Time, default=time(7, 0))   # 7 AM default
+    apply_shutoff_weekends = db.Column(db.Boolean, default=False)     # Whether to apply shutoff on weekends
+
+    # Energy conservation policy
+    energy_conservation_active = db.Column(db.Boolean, default=False)
+    conservation_threshold = db.Column(db.Float, default=24.0)        # Temperature threshold for conservation mode
+
+    def __init__(self):
+        pass  # Use default values
+
 class ACSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     room_number = db.Column(db.String(10), db.ForeignKey('user.room_number'))
@@ -54,6 +74,14 @@ class ACSettings(db.Model):
     email_notifications = db.Column(db.Boolean, default=True)
     settings_locked = db.Column(db.Boolean, default=False)
     max_temp_locked = db.Column(db.Boolean, default=False)  # Locks max temperature separately
+    
+    # Schedule override settings
+    schedule_override = db.Column(db.Boolean, default=False)  # Whether this room is exempt from global schedule
+    
+    # Compliance metrics
+    window_open_minutes = db.Column(db.Integer, default=0)    # Minutes with window open and AC on in the last 24 hours
+    temperature_deviation = db.Column(db.Float, default=0.0)  # Average deviation from policy temperature
+    compliance_score = db.Column(db.Float, default=100.0)     # Overall compliance score (0-100)
 
     def __init__(self, room_number=None):
         self.room_number = room_number
@@ -65,6 +93,9 @@ class WindowEvent(db.Model):
     window_state = db.Column(db.String(10))  # 'opened' or 'closed'
     ac_state = db.Column(db.String(10))  # 'on' or 'off'
     temperature = db.Column(db.Float)
+    # Additional fields for tracking policy compliance
+    policy_compliant = db.Column(db.Boolean, default=True)
+    compliance_issue = db.Column(db.String(100), nullable=True)
 
 class PendingWindowEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -75,6 +106,18 @@ class PendingWindowEvent(db.Model):
     temperature = db.Column(db.Float)
     scheduled_action_time = db.Column(db.DateTime)  # When the action is scheduled to happen
     processed = db.Column(db.Boolean, default=False)  # Whether this event has been processed
+    event_type = db.Column(db.String(20), default='window_open')  # Type of event (window_open, scheduled, etc.)
+
+class RoomStatus(db.Model):
+    """Current status of a room - updated continuously from events"""
+    id = db.Column(db.Integer, primary_key=True)
+    room_number = db.Column(db.String(10), db.ForeignKey('user.room_number'), unique=True)
+    current_temperature = db.Column(db.Float, default=22.0)
+    window_state = db.Column(db.String(10), default='closed')  # 'opened' or 'closed'
+    ac_state = db.Column(db.String(10), default='off')  # 'on' or 'off'
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    has_pending_event = db.Column(db.Boolean, default=False)  # Whether there's a pending action for this room
+    pending_event_time = db.Column(db.DateTime, nullable=True)  # When the pending action will occur
 
 class SessionAtributes():
     def __init__(self, room_number, is_admin):

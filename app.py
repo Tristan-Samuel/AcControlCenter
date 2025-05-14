@@ -6,6 +6,7 @@ from flask_login import LoginManager
 from flask_mail import Mail
 from sqlalchemy.orm import DeclarativeBase
 from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime, time, timedelta
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -47,8 +48,7 @@ def check_pending_window_events():
     Check for pending window events and process them if their delay time has elapsed
     """
     with app.app_context():
-        from models import PendingWindowEvent, WindowEvent
-        from datetime import datetime
+        from models import PendingWindowEvent, WindowEvent, RoomStatus
         import logging
         
         # Get all pending events that haven't been processed yet and their scheduled time has passed
@@ -67,6 +67,24 @@ def check_pending_window_events():
                 
                 # Add and commit the final event
                 db.session.add(final_event)
+                
+                # Update room status
+                room_status = RoomStatus.query.filter_by(room_number=event.room_number).first()
+                if not room_status:
+                    room_status = RoomStatus(
+                        room_number=event.room_number,
+                        current_temperature=event.temperature,
+                        window_state=event.window_state,
+                        ac_state='off' if event.ac_state == 'on' else event.ac_state
+                    )
+                    db.session.add(room_status)
+                else:
+                    room_status.window_state = event.window_state
+                    room_status.ac_state = 'off' if event.ac_state == 'on' else event.ac_state
+                    room_status.current_temperature = event.temperature
+                    room_status.has_pending_event = False
+                    room_status.pending_event_time = None
+                    room_status.last_updated = datetime.utcnow()
                 
                 # Mark pending event as processed
                 event.processed = True
@@ -92,11 +110,190 @@ def check_pending_window_events():
                 db.session.rollback()
                 logging.error(f"Error processing pending event {event.id}: {str(e)}")
 
+def check_scheduled_shutoffs():
+    """Check for scheduled AC shutoffs based on global policy"""
+    with app.app_context():
+        from models import GlobalPolicy, ACSettings, User, PendingWindowEvent, RoomStatus
+        
+        now = datetime.now()
+        current_time = now.time()
+        
+        # Skip on weekends if policy says so
+        if now.weekday() >= 5:  # 5=Saturday, 6=Sunday
+            policy = GlobalPolicy.query.first()
+            if policy and policy.scheduled_shutoff_active and not policy.apply_shutoff_weekends:
+                return
+        
+        # Get the global policy
+        policy = GlobalPolicy.query.first()
+        if not policy or not policy.scheduled_shutoff_active:
+            return
+            
+        # Time to shut off ACs?
+        if time_in_range(policy.scheduled_startup_time, policy.scheduled_shutoff_time, current_time):
+            # It's during active hours - make sure ACs are allowed to run
+            logging.info("During active hours - no shutoff needed")
+            return
+        else:
+            # It's outside active hours - schedule shutoff for any active ACs
+            logging.info("Outside active hours - checking for ACs to shut off")
+            
+            # Find all rooms with AC currently on
+            room_statuses = RoomStatus.query.filter_by(ac_state='on').all()
+            
+            for status in room_statuses:
+                # Skip rooms with schedule override
+                ac_setting = ACSettings.query.filter_by(room_number=status.room_number).first()
+                if ac_setting and ac_setting.schedule_override:
+                    continue
+                    
+                # Create a pending event to shut off this room's AC
+                logging.info(f"Scheduling shutoff for room {status.room_number} due to global schedule")
+                pending = PendingWindowEvent()
+                pending.room_number = status.room_number
+                pending.window_state = status.window_state
+                pending.ac_state = status.ac_state
+                pending.temperature = status.current_temperature
+                pending.scheduled_action_time = datetime.utcnow() + timedelta(seconds=30)  # 30 second grace period
+                pending.processed = False
+                pending.event_type = 'scheduled_shutoff'
+                
+                # Update room status
+                status.has_pending_event = True
+                status.pending_event_time = pending.scheduled_action_time
+                
+                # Save changes
+                db.session.add(pending)
+                db.session.commit()
+
+def update_compliance_metrics():
+    """Update compliance metrics for all rooms"""
+    with app.app_context():
+        from models import ACSettings, WindowEvent, GlobalPolicy, User
+        
+        # Get policy
+        policy = GlobalPolicy.query.first()
+        if not policy:
+            return
+            
+        # Get all rooms
+        rooms = User.query.filter(User.room_number.isnot(None)).all()
+        
+        for room in rooms:
+            try:
+                # Get settings for this room
+                settings = ACSettings.query.filter_by(room_number=room.room_number).first()
+                if not settings:
+                    continue
+                
+                # Calculate window_open_minutes (time with window open and AC on)
+                one_day_ago = datetime.utcnow() - timedelta(days=1)
+                window_open_events = WindowEvent.query.filter(
+                    WindowEvent.room_number == room.room_number,
+                    WindowEvent.timestamp >= one_day_ago,
+                    WindowEvent.window_state == 'opened',
+                    WindowEvent.ac_state == 'on'
+                ).all()
+                
+                # Rough estimate - each event represents about 1 minute
+                window_open_minutes = len(window_open_events)
+                
+                # Calculate temperature deviation
+                # Get the average difference between room temperature and policy limits
+                temp_events = WindowEvent.query.filter(
+                    WindowEvent.room_number == room.room_number,
+                    WindowEvent.timestamp >= one_day_ago
+                ).all()
+                
+                total_deviation = 0.0
+                event_count = len(temp_events)
+                
+                if event_count > 0:
+                    for event in temp_events:
+                        # Calculate how far the temperature is from the acceptable range
+                        if event.temperature < policy.min_allowed_temp:
+                            deviation = policy.min_allowed_temp - event.temperature
+                        elif event.temperature > policy.max_allowed_temp:
+                            deviation = event.temperature - policy.max_allowed_temp
+                        else:
+                            deviation = 0.0
+                        total_deviation += deviation
+                    
+                    avg_deviation = total_deviation / event_count
+                else:
+                    avg_deviation = 0.0
+                
+                # Calculate compliance score (100 is perfect, lower is worse)
+                # Formula: start with 100, subtract penalties
+                compliance_score = 100.0
+                
+                # Penalty for window open minutes
+                window_penalty = min(50, window_open_minutes * 0.5)  # Max 50 point penalty
+                
+                # Penalty for temperature deviation
+                temp_penalty = min(50, avg_deviation * 10)  # Max 50 point penalty
+                
+                compliance_score -= (window_penalty + temp_penalty)
+                compliance_score = max(0, compliance_score)  # Ensure it doesn't go negative
+                
+                # Update settings
+                settings.window_open_minutes = window_open_minutes
+                settings.temperature_deviation = avg_deviation
+                settings.compliance_score = compliance_score
+                
+                # Save changes
+                db.session.commit()
+                logging.info(f"Updated compliance metrics for room {room.room_number}: score={compliance_score}")
+                
+            except Exception as e:
+                db.session.rollback()
+                logging.error(f"Error updating compliance for room {room.room_number}: {str(e)}")
+
+def time_in_range(start, end, current):
+    """Returns whether current is in the range [start, end]"""
+    # Handle the case where a period crosses midnight
+    if start <= end:
+        return start <= current <= end
+    else:
+        return start <= current or current <= end
+
 # Start scheduler
 scheduler.add_job(check_pending_window_events, 'interval', seconds=10)  # Check every 10 seconds
+scheduler.add_job(check_scheduled_shutoffs, 'interval', minutes=5)  # Check every 5 minutes
+scheduler.add_job(update_compliance_metrics, 'interval', hours=1)  # Update metrics hourly
 scheduler.start()
 
 with app.app_context():
     # Import models to ensure they're registered with SQLAlchemy
-    from models import User, ACSettings, WindowEvent, PendingWindowEvent  # noqa
+    from models import User, ACSettings, WindowEvent, PendingWindowEvent, GlobalPolicy, RoomStatus  # noqa
+    
+    # Create all tables
     db.create_all()
+    
+    # Initialize a default global policy if one doesn't exist
+    policy = GlobalPolicy.query.first()
+    if not policy:
+        policy = GlobalPolicy()
+        db.session.add(policy)
+        db.session.commit()
+        logging.info("Created default global policy")
+    
+    # Initialize RoomStatus for all existing rooms
+    users = User.query.filter(User.room_number.isnot(None)).all()
+    for user in users:
+        status = RoomStatus.query.filter_by(room_number=user.room_number).first()
+        if not status:
+            # Get latest event for this room
+            latest_event = WindowEvent.query.filter_by(room_number=user.room_number).order_by(WindowEvent.timestamp.desc()).first()
+            
+            # Create initial status
+            status = RoomStatus(room_number=user.room_number)
+            if latest_event:
+                status.window_state = latest_event.window_state
+                status.ac_state = latest_event.ac_state
+                status.current_temperature = latest_event.temperature
+                
+            db.session.add(status)
+            logging.info(f"Created initial status for room {user.room_number}")
+    
+    db.session.commit()
