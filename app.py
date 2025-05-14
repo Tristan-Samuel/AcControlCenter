@@ -42,6 +42,7 @@ mail.init_app(app)
 
 # Import routes after app initialization
 from routes import *  # noqa
+from check_command_endpoint import *  # Import the check_command endpoint
 
 def check_pending_window_events():
     """
