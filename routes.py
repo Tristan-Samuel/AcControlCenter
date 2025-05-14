@@ -695,6 +695,8 @@ def register():
 @app.route('/api/temperature/<room_number>')
 @login_required
 def get_temperature(room_number):
+    from temperature_utils import celsius_to_fahrenheit
+    
     if not current_user.is_admin and current_user.room_number != room_number:
         return jsonify({'error': 'Unauthorized'}), 403
 
@@ -711,8 +713,13 @@ def get_temperature(room_number):
         from email_utils import send_temperature_alert
         send_temperature_alert(user.email, room_number, round(current_temp, 1))
 
+    # Convert to Fahrenheit for display
+    temp_f = celsius_to_fahrenheit(current_temp)
+    
     return jsonify({
-        'temperature': round(current_temp, 1),
+        'temperature': round(current_temp, 1),  # Keep Celsius for backwards compatibility
+        'temperature_f': round(temp_f, 1),  # Fahrenheit
+        'unit': 'F',  # Indicate preferred unit
         'timestamp': datetime.utcnow().isoformat()
     })
 

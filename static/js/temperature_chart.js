@@ -5,7 +5,7 @@ const temperatureChart = new Chart(ctx, {
     data: {
         labels: [],
         datasets: [{
-            label: 'Temperature °C',
+            label: 'Temperature °F',
             data: [],
             borderColor: 'rgb(75, 192, 192)',
             tension: 0.1
@@ -16,8 +16,8 @@ const temperatureChart = new Chart(ctx, {
         scales: {
             y: {
                 beginAtZero: false,
-                min: 18,
-                max: 30
+                min: 65,  // Fahrenheit equivalent of ~18°C
+                max: 85   // Fahrenheit equivalent of ~30°C
             }
         }
     }
@@ -33,8 +33,9 @@ async function updateChart() {
         const response = await fetch(`/api/temperature/${roomNumber}`);
         const data = await response.json();
 
-        // Add new data point
-        temperatures.push(data.temperature);
+        // Add new data point (using Fahrenheit if available)
+        const temp = data.temperature_f || (data.temperature * 9/5 + 32);
+        temperatures.push(temp);
         timestamps.push(new Date(data.timestamp).toLocaleTimeString());
 
         // Keep only last 24 points
@@ -49,7 +50,7 @@ async function updateChart() {
 
         // Update current temperature display
         document.querySelector('[data-current-temp]').textContent = 
-            `${data.temperature.toFixed(1)}°C`;
+            `${temp.toFixed(1)}°F`;
     } catch (error) {
         console.error('Error updating temperature:', error);
     }

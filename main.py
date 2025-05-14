@@ -33,8 +33,8 @@ if __name__ == "__main__":
     
     # Print connection information
     print(f"📡 LOCAL ACCESS (Same Network):")
-    print(f"   http://{local_ip}:5000")
-    print(f"   http://localhost:5000\n")
+    print(f"   http://{local_ip}:5001")
+    print(f"   http://localhost:5001\n")
     
     if use_ngrok:
         try:
@@ -43,7 +43,7 @@ if __name__ == "__main__":
             ngrok_tunnel.init_ngrok(NGROK_AUTH_TOKEN)
             
             # Start ngrok tunnel
-            ngrok_url = ngrok_tunnel.start_tunnel(port=5000)
+            ngrok_url = ngrok_tunnel.start_tunnel(port=5001)
             
             if ngrok_url:
                 print(f"   {ngrok_url}")
