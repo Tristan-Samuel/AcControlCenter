@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    <!-- Safari compatibility fix: removed Content-Security-Policy that forces HTTPS -->
     <title>AC Control System</title>
     <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/chart.js" crossorigin="anonymous"></script>
@@ -56,6 +56,29 @@
                 console.error('Resource failed to load:', e.target.src || e.target.href);
             }
         }, true);
+        
+        // Safari compatibility fix
+        (function() {
+            // Check if browser is Safari
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            
+            if (isSafari) {
+                console.log("Safari detected - applying compatibility fixes");
+                
+                // Fix HTTPS issues in Safari by forcing all links to HTTP when in local mode
+                if (window.location.protocol === 'https:' && 
+                    (window.location.hostname === 'localhost' || 
+                     window.location.hostname === '127.0.0.1' ||
+                     /^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(window.location.hostname))) {
+                    
+                    // Redirect to HTTP version of the same page
+                    window.location.href = window.location.href.replace('https:', 'http:');
+                }
+                
+                // Add Safari-specific class to body for CSS adjustments if needed
+                document.body.classList.add('safari-browser');
+            }
+        })();
     </script>
     {% block scripts %}{% endblock %}
 </body>

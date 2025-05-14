@@ -18,7 +18,7 @@ import logging
 import threading
 import time
 from pyngrok import ngrok, conf, exception
-from flask import current_app
+from flask import current_app, request
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)
@@ -154,6 +154,30 @@ def init_app(app, auth_token=None):
     @app.route('/api/tunnel_url')
     def tunnel_url():
         """Return current public URL for clients"""
+        # Get local IP for better offline experience
+        try:
+            import socket
+            hostname = socket.gethostname()
+            local_ip = socket.gethostbyname(hostname)
+        except Exception:
+            local_ip = "localhost"
+        
+        # In offline mode, provide a local URL
+        if not public_url:
+            # Include both localhost and IP address options
+            local_url = f"http://{local_ip}:{app.config.get('PORT', 5001)}"
+            # Also include the client IP address if using Safari
+            client_ip = request.remote_addr if hasattr(request, 'remote_addr') else None
+            
+            return {
+                "url": local_url, 
+                "status": "offline", 
+                "supports_https": False,  # Force HTTP for Safari
+                "local_ip": local_ip,
+                "client_ip": client_ip,
+                "port": app.config.get('PORT', 5001)
+            }
+        
         return {"url": public_url, "status": "active" if is_running else "inactive"}
     
     return app

@@ -58,19 +58,64 @@ API_ENDPOINT = None  # Will be set once SERVER_URL is determined
 # Flag to indicate if we should try to get ngrok URL
 USE_NGROK = True
 
+# Helper function to handle HTTP/HTTPS requests safely
+def send_request(method, url, **kwargs):
+    """
+    Send HTTP/HTTPS request with fallback to HTTP if HTTPS fails
+    
+    Args:
+        method: 'get' or 'post'
+        url: Target URL
+        **kwargs: Additional arguments for requests
+        
+    Returns:
+        Response object or None on failure
+    """
+    # Force HTTPS to HTTP in offline mode if needed
+    if url.startswith("https://") and not url.startswith("https://ngrok"):
+        # Only convert non-ngrok URLs to HTTP (local dev URLs)
+        fallback_url = url.replace("https://", "http://")
+    else:
+        fallback_url = url
+        
+    try:
+        # Try the original URL first
+        if method.lower() == 'get':
+            response = requests.get(url, **kwargs)
+        else:
+            response = requests.post(url, **kwargs)
+        return response
+    except requests.exceptions.SSLError:
+        # If SSL error, try with HTTP instead
+        logger.warning(f"SSL error with {url}, trying HTTP fallback")
+        if method.lower() == 'get':
+            return requests.get(fallback_url, **kwargs)
+        else:
+            return requests.post(fallback_url, **kwargs)
+    except Exception as e:
+        logger.error(f"Request error: {e}")
+        return None
+
 def update_server_url():
     """Update the server URL to use ngrok if available"""
     global SERVER_URL, API_ENDPOINT
     
     if USE_NGROK:
         try:
-            # Try to get the ngrok URL from the server
-            response = requests.get(f"{SERVER_URL}/api/tunnel_url", timeout=5)
-            if response.status_code == 200:
+            # Try to get the ngrok URL from the server using our safe request helper
+            response = send_request('get', f"{SERVER_URL}/api/tunnel_url", timeout=5)
+            if response and response.status_code == 200:
                 data = response.json()
                 if data.get("url") and data.get("status") == "active":
                     SERVER_URL = data["url"]
                     logger.info(f"Using ngrok tunnel URL: {SERVER_URL}")
+                elif data.get("url") and data.get("status") == "offline" and data.get("supports_https", False):
+                    # If offline mode but HTTPS is supported, use HTTP anyway
+                    SERVER_URL = data["url"]
+                    # Replace https with http if present - this fixes the offline HTTPS issue
+                    if SERVER_URL.startswith("https://"):
+                        SERVER_URL = SERVER_URL.replace("https://", "http://")
+                    logger.info(f"Using offline mode with HTTP URL: {SERVER_URL}")
         except Exception as e:
             logger.warning(f"Could not get ngrok URL, using local URL: {e}")
     
