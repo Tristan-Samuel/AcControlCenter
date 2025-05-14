@@ -609,23 +609,49 @@ def force_ac_state(room_number, state):
         return redirect(url_for('room_dashboard'))
     
     try:
-        # Create a window event with the current window state but forced AC state
-        latest_event = WindowEvent.query.filter_by(room_number=room_number)\
-            .order_by(WindowEvent.timestamp.desc()).first()
+        # Get current room status 
+        room_status = RoomStatus.query.filter_by(room_number=room_number).first()
         
-        current_window_state = 'closed'  # Default if no previous events
-        current_temp = 22.0  # Default temperature
+        if not room_status:
+            # Create room status if it doesn't exist
+            room_status = RoomStatus(room_number=room_number)
+            db.session.add(room_status)
+            
+        # Update room status with the new AC state
+        room_status.ac_state = state
         
-        if latest_event:
-            current_window_state = latest_event.window_state
-            current_temp = latest_event.temperature
+        # Use current values from room status
+        current_window_state = room_status.window_state
+        current_temp = room_status.current_temperature
         
-        # Create new event with forced AC state
+        # Create new window event with forced AC state
         event = WindowEvent()
         event.room_number = room_number
         event.window_state = current_window_state
         event.ac_state = state
         event.temperature = current_temp
+        
+        # Also update the last_updated timestamp for the room status
+        room_status.last_updated = datetime.utcnow()
+        
+        # If we're turning AC off, clear any non-compliant status
+        if state == 'off' and room_status.non_compliant_since is not None:
+            room_status.non_compliant_since = None
+            room_status.policy_violation_type = None
+            
+        # Clear any pending events for this room
+        if room_status.has_pending_event:
+            # Cancel any pending AC shutoff events
+            pending_events = PendingWindowEvent.query.filter_by(
+                room_number=room_number, 
+                processed=False
+            ).all()
+            
+            for pending in pending_events:
+                pending.processed = True
+                
+            room_status.has_pending_event = False
+            room_status.pending_event_time = None
         
         db.session.add(event)
         db.session.commit()
@@ -895,6 +921,83 @@ def get_recent_events(room_number):
         })
         
     return jsonify({'events': events_data})
+
+
+@app.route('/api/check_policy/<room_number>')
+def check_policy(room_number):
+    """Check if an AC command should be intercepted based on policy"""
+    # API endpoint for the Raspberry Pi client to check if commands should be intercepted
+    command = request.args.get('command', '')
+    current_temp = float(request.args.get('current_temp', 22.0))
+    
+    # Get room settings and global policy
+    settings = ACSettings.query.filter_by(room_number=room_number).first()
+    policy = GlobalPolicy.query.first()
+    
+    intercept = False
+    reason = None
+    
+    if not settings or not policy:
+        return jsonify({'intercept': False, 'reason': 'Settings or policy not found'})
+    
+    # Check if this is a temperature setting change
+    if command.startswith('TEMP_'):
+        try:
+            requested_temp = float(command.split('_')[1])
+            
+            # Check against global policy
+            if policy.policy_active:
+                if requested_temp < policy.min_allowed_temp:
+                    intercept = True
+                    reason = f"Temperature too low (min: {policy.min_allowed_temp}°C)"
+                elif requested_temp > policy.max_allowed_temp:
+                    intercept = True
+                    reason = f"Temperature too high (max: {policy.max_allowed_temp}°C)"
+        except:
+            pass
+    
+    # Check if this is power on and settings are locked
+    if command == "POWER_ON" or command == "POWER":
+        # Check if max temperature enforcement is active
+        if settings.max_temp_locked and current_temp <= settings.max_temperature:
+            intercept = False  # Allow turning on if temperature is below max
+        elif settings.max_temp_locked and current_temp > settings.max_temperature:
+            intercept = True
+            reason = f"Temperature above max allowed ({settings.max_temperature}°C)"
+            
+        # Check if force on is disabled
+        if not settings.force_on_enabled:
+            intercept = True
+            reason = "Force turn ON has been disabled by administrator"
+            
+        # Check scheduled shutoff policy
+        if policy.scheduled_shutoff_active:
+            # Get current time
+            now = datetime.now().time()
+            
+            # Check if we're in the shutoff period
+            in_shutoff_period = time_in_range(
+                policy.scheduled_shutoff_time,
+                policy.scheduled_startup_time,
+                now
+            )
+            
+            # Check if it's a weekend
+            is_weekend = datetime.now().weekday() >= 5  # 5=Saturday, 6=Sunday
+            
+            if in_shutoff_period and (policy.apply_shutoff_weekends or not is_weekend):
+                if not settings.schedule_override:
+                    intercept = True
+                    reason = "Outside of allowed operating hours"
+    
+    return jsonify({
+        'intercept': intercept,
+        'reason': reason,
+        'policy': {
+            'min_temp': policy.min_allowed_temp if policy.policy_active else None,
+            'max_temp': policy.max_allowed_temp if policy.policy_active else None
+        }
+    })
 
 
 @app.route('/receive_data', methods=['POST'])

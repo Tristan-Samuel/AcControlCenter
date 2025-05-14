@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>Event Logs</h4>
+                <div>
+                    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary me-2">
+                        <i data-feather="arrow-left" class="me-1"></i>Back to Dashboard
+                    </a>
+                    <button id="export-csv" class="btn btn-success">
+                        <i data-feather="download" class="me-1"></i>Export to CSV
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="room-filter">Room Number</label>
+                            <select id="room-filter" class="form-select">
+                                <option value="all">All Rooms</option>
+                                {% for room in rooms %}
+                                <option value="{{ room.room_number }}" {% if selected_room == room.room_number %}selected{% endif %}>{{ room.room_number }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="event-type">Event Type</label>
+                            <select id="event-type" class="form-select">
+                                <option value="all">All Events</option>
+                                <option value="window_opened">Window Opened</option>
+                                <option value="window_closed">Window Closed</option>
+                                <option value="ac_on">AC Turned On</option>
+                                <option value="ac_off">AC Turned Off</option>
+                                <option value="policy_violation">Policy Violations</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label for="date-from">From Date</label>
+                            <input type="date" id="date-from" class="form-control" value="{{ date_from }}">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label for="date-to">To Date</label>
+                            <input type="date" id="date-to" class="form-control" value="{{ date_to }}">
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button id="apply-filters" class="btn btn-primary w-100">
+                            <i data-feather="filter" class="me-1"></i>Apply Filters
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-striped" id="events-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Room</th>
+                                <th>Timestamp</th>
+                                <th>Window State</th>
+                                <th>AC State</th>
+                                <th>Temperature</th>
+                                <th>Compliant</th>
+                                <th>Issue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for event in events %}
+                            <tr {% if not event.policy_compliant %}class="table-danger"{% endif %}>
+                                <td>{{ event.id }}</td>
+                                <td>{{ event.room_number }}</td>
+                                <td>{{ event.timestamp }}</td>
+                                <td>
+                                    <span class="badge {% if event.window_state == 'opened' %}bg-warning{% else %}bg-info{% endif %}">
+                                        {{ event.window_state }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge {% if event.ac_state == 'on' %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {{ event.ac_state }}
+                                    </span>
+                                </td>
+                                <td>{{ "%.1f"|format(event.temperature) }}°C</td>
+                                <td>
+                                    {% if event.policy_compliant %}
+                                    <i data-feather="check-circle" class="text-success"></i>
+                                    {% else %}
+                                    <i data-feather="alert-triangle" class="text-danger"></i>
+                                    {% endif %}
+                                </td>
+                                <td>{{ event.compliance_issue or '' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div>
+                        Showing {{ events|length }} of {{ total_events }} events
+                    </div>
+                    <div>
+                        <nav aria-label="Event pagination">
+                            <ul class="pagination">
+                                {% if page > 1 %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('event_logs', page=page-1, room=selected_room, event_type=event_type, date_from=date_from, date_to=date_to) }}">
+                                        Previous
+                                    </a>
+                                </li>
+                                {% else %}
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" tabindex="-1">Previous</a>
+                                </li>
+                                {% endif %}
+                                
+                                {% for i in range(1, total_pages + 1) %}
+                                <li class="page-item {% if i == page %}active{% endif %}">
+                                    <a class="page-link" href="{{ url_for('event_logs', page=i, room=selected_room, event_type=event_type, date_from=date_from, date_to=date_to) }}">
+                                        {{ i }}
+                                    </a>
+                                </li>
+                                {% endfor %}
+                                
+                                {% if page < total_pages %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('event_logs', page=page+1, room=selected_room, event_type=event_type, date_from=date_from, date_to=date_to) }}">
+                                        Next
+                                    </a>
+                                </li>
+                                {% else %}
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" tabindex="-1">Next</a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Feather icons
+    feather.replace();
+    
+    // Room filter change handler
+    document.getElementById('room-filter').addEventListener('change', function() {
+        updateFilters();
+    });
+    
+    // Event type filter change handler
+    document.getElementById('event-type').addEventListener('change', function() {
+        updateFilters();
+    });
+    
+    // Apply filters button click handler
+    document.getElementById('apply-filters').addEventListener('click', function() {
+        updateFilters();
+    });
+    
+    // Export to CSV button click handler
+    document.getElementById('export-csv').addEventListener('click', function() {
+        const roomFilter = document.getElementById('room-filter').value;
+        const eventType = document.getElementById('event-type').value;
+        const dateFrom = document.getElementById('date-from').value;
+        const dateTo = document.getElementById('date-to').value;
+        
+        // Build export URL with current filters
+        let exportUrl = '/api/export_events?format=csv';
+        if (roomFilter !== 'all') exportUrl += '&room=' + roomFilter;
+        if (eventType !== 'all') exportUrl += '&event_type=' + eventType;
+        if (dateFrom) exportUrl += '&date_from=' + dateFrom;
+        if (dateTo) exportUrl += '&date_to=' + dateTo;
+        
+        // Navigate to export URL
+        window.location.href = exportUrl;
+    });
+    
+    // Update page URL with filter values
+    function updateFilters() {
+        const roomFilter = document.getElementById('room-filter').value;
+        const eventType = document.getElementById('event-type').value;
+        const dateFrom = document.getElementById('date-from').value;
+        const dateTo = document.getElementById('date-to').value;
+        
+        let url = '/event_logs?page=1';
+        if (roomFilter !== 'all') url += '&room=' + roomFilter;
+        if (eventType !== 'all') url += '&event_type=' + eventType;
+        if (dateFrom) url += '&date_from=' + dateFrom;
+        if (dateTo) url += '&date_to=' + dateTo;
+        
+        window.location.href = url;
+    }
+});
+</script>
+{% endblock %}
