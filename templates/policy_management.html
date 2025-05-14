@@ -29,9 +29,9 @@
                     <div class="row mb-4">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="min_allowed_temp" class="form-label">Minimum Allowed Temperature (°C)</label>
+                                <label for="min_allowed_temp" class="form-label">Minimum Allowed Temperature (°F)</label>
                                 <input type="number" class="form-control" id="min_allowed_temp" name="min_allowed_temp" 
-                                       value="{{ policy.min_allowed_temp }}" min="16" max="24" step="0.5">
+                                       value="{{ (policy.min_allowed_temp * 9/5 + 32) | round(1) }}" min="60" max="75" step="1">
                                 <div class="form-text">Temperatures below this will trigger policy warnings</div>
                             </div>
                         </div>

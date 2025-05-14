@@ -73,8 +73,10 @@ function updateCurrentTemperature() {
             .then(response => response.json())
             .then(data => {
                 if (data && data.temperature) {
+                    // Convert temperature to Fahrenheit if needed
+                    const tempF = data.temperature_f || (data.temperature * 9/5 + 32);
                     // Update current temperature display without updating chart
-                    tempDisplay.textContent = `${data.temperature.toFixed(1)}°C`;
+                    tempDisplay.textContent = `${tempF.toFixed(1)}°F`;
                     
                     // Update room status
                     const statusElement = document.querySelector('.room-status');

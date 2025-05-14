@@ -152,6 +152,10 @@ def room_dashboard():
     # Get current temperature from room status
     current_temp = room_status.current_temperature
     
+    # Convert to Fahrenheit for display
+    from temperature_utils import celsius_to_fahrenheit
+    current_temp_f = celsius_to_fahrenheit(current_temp)
+    
     # Get global policy
     policy = GlobalPolicy.query.first()
     policy_active = policy and policy.policy_active if policy else False
@@ -167,6 +171,7 @@ def room_dashboard():
                            compliance_score=settings.compliance_score,
                            policy_active=policy_active,
                            current_temp=current_temp,
+                           current_temp_f=current_temp_f,
                            session_attributes=session_attributes)
 
 
@@ -558,8 +563,10 @@ def update_settings():
                     'settings_locked'] == '1'
                 flash('Settings access updated!', 'success')
             else:
-                settings.max_temperature = float(
-                    request.form['max_temperature'])
+                # Convert from Fahrenheit to Celsius for storage
+                from temperature_utils import fahrenheit_to_celsius
+                fahrenheit_temp = float(request.form['max_temperature'])
+                settings.max_temperature = fahrenheit_to_celsius(fahrenheit_temp)
                 settings.auto_shutoff = 'auto_shutoff' in request.form
                 settings.shutoff_delay = int(request.form.get('shutoff_delay', 30))
                 settings.email_notifications = 'email_notifications' in request.form
@@ -567,8 +574,10 @@ def update_settings():
         elif room_number2:
             # Allow user to update settings if not forced
             try:
-                settings.max_temperature = float(
-                    request.form['max_temperature'])
+                # Convert from Fahrenheit to Celsius for storage
+                from temperature_utils import fahrenheit_to_celsius
+                fahrenheit_temp = float(request.form['max_temperature'])
+                settings.max_temperature = fahrenheit_to_celsius(fahrenheit_temp)
             except Exception:
                 pass
 
@@ -727,6 +736,9 @@ def get_temperature(room_number):
 @app.route('/api/room_status/<room_number>')
 @login_required
 def get_room_status(room_number):
+    # Import temperature conversion utility
+    from temperature_utils import celsius_to_fahrenheit
+    
     if not current_user.is_admin and current_user.room_number != room_number:
         return jsonify({'error': 'Unauthorized'}), 403
 
@@ -752,14 +764,22 @@ def get_room_status(room_number):
     pending_event_time = None
     if room_status.pending_event_time:
         pending_event_time = room_status.pending_event_time.isoformat()
+    
+    # Convert temperature to Fahrenheit
+    celsius_temp = room_status.current_temperature
+    fahrenheit_temp = celsius_to_fahrenheit(celsius_temp)
+    max_temp_f = celsius_to_fahrenheit(settings.max_temperature)
 
     return jsonify({
         'max_temperature': settings.max_temperature,
+        'max_temperature_f': max_temp_f,
         'auto_shutoff': settings.auto_shutoff,
         'email_notifications': settings.email_notifications,
         'window_state': room_status.window_state,
         'ac_state': room_status.ac_state,
-        'temperature': room_status.current_temperature,
+        'temperature': celsius_temp,
+        'temperature_f': fahrenheit_temp,
+        'unit': 'F',  # Indicate preferred unit
         'has_pending_event': room_status.has_pending_event,
         'pending_event_time': pending_event_time,
         'non_compliant_since': non_compliant_since,
@@ -1212,6 +1232,9 @@ def get_recent_events(room_number):
     if not current_user.is_admin and current_user.room_number != room_number:
         return jsonify({'error': 'Unauthorized'}), 403
         
+    # Import temperature conversion utility
+    from temperature_utils import celsius_to_fahrenheit
+        
     # Fetch latest events for this room (limit to 10)
     events = WindowEvent.query.filter_by(room_number=room_number)\
         .order_by(WindowEvent.timestamp.desc()).limit(10).all()
@@ -1219,12 +1242,17 @@ def get_recent_events(room_number):
     # Format events for JSON response
     events_data = []
     for event in events:
+        # Convert temperature to Fahrenheit
+        temp_f = celsius_to_fahrenheit(event.temperature) if event.temperature else None
+        
         events_data.append({
             'id': event.id,
             'timestamp': event.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
             'window_state': event.window_state,
             'ac_state': event.ac_state,
-            'temperature': event.temperature
+            'temperature': event.temperature,
+            'temperature_f': temp_f,
+            'unit': 'F'  # Indicate preferred unit
         })
         
     return jsonify({'events': events_data})

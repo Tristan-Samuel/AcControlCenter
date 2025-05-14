@@ -11,7 +11,7 @@
                 <div class="d-flex justify-content-between mb-3">
                     <div>
                         <i data-feather="thermometer" class="me-2"></i>
-                        <span data-current-temp class="fs-4">{{ "%.1f"|format(current_temp) }}°C</span>
+                        <span data-current-temp class="fs-4">{{ "%.1f"|format(current_temp_f) }}°F</span>
                     </div>
                     <div class="text-end">
                         {% if room_status %}
@@ -96,9 +96,9 @@
                     <input type="hidden" name="room_number" value="{{ room_number }}">
                     <input type="hidden" name="is_admin" value="{{ 'true' if is_admin else 'false' }}">
                     <div class="mb-3">
-                        <label for="max_temperature" class="form-label">Maximum Temperature (°C)</label>
+                        <label for="max_temperature" class="form-label">Maximum Temperature (°F)</label>
                         <input type="number" class="form-control" id="max_temperature" name="max_temperature"
-                               value="{{ settings.max_temperature }}" step="0.5" min="18" max="30"
+                               value="{{ (settings.max_temperature * 9/5 + 32) | round(1) }}" step="1" min="65" max="86"
                                {% if settings.max_temp_locked and is_admin == False %}disabled{% endif %}>
                     </div>
                     
@@ -191,7 +191,7 @@
                                 <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                                 <td>{{ event.window_state }}</td>
                                 <td>{{ event.ac_state }}</td>
-                                <td>{{ "%.1f"|format(event.temperature) }}°C</td>
+                                <td>{{ "%.1f"|format(event.temperature * 9/5 + 32) }}°F</td>
                             </tr>
                             {% endfor %}
                         </tbody>

@@ -14,9 +14,10 @@ async function updateTemperatures() {
             const data = await response.json();
             
             // Update temperature display
-            if (data && data.temperature) {
-                const temp = parseFloat(data.temperature).toFixed(1);
-                element.textContent = `${temp}°C`;
+            if (data && (data.temperature_f || data.temperature)) {
+                const temp = data.temperature_f ? parseFloat(data.temperature_f).toFixed(1) : 
+                    (parseFloat(data.temperature) * 9/5 + 32).toFixed(1);
+                element.textContent = `${temp}°F`;
                 
                 // Update status based on temperature and other factors
                 const statusElement = document.getElementById(`status-${roomNumber}`);
@@ -70,7 +71,7 @@ async function fetchRecentEvents() {
                     <td>${event.timestamp}</td>
                     <td>${event.window_state}</td>
                     <td>${event.ac_state}</td>
-                    <td>${event.temperature.toFixed(1)}°C</td>
+                    <td>${(event.temperature_f || (event.temperature * 9/5 + 32)).toFixed(1)}°F</td>
                 </tr>`;
             });
             eventsTable.innerHTML = newRows;
@@ -120,8 +121,10 @@ function updateAllRoomStatus() {
                 
                 // Update temperature
                 const tempElement = card.querySelector('.room-temperature');
-                if (tempElement && data.temperature) {
-                    tempElement.textContent = `${parseFloat(data.temperature).toFixed(1)}°C`;
+                if (tempElement && (data.temperature_f || data.temperature)) {
+                    const temp = data.temperature_f ? parseFloat(data.temperature_f).toFixed(1) : 
+                        (parseFloat(data.temperature) * 9/5 + 32).toFixed(1);
+                    tempElement.textContent = `${temp}°F`;
                 }
             } catch (error) {
                 console.error(`Error updating status for room ${roomNumber}:`, error);
