@@ -55,6 +55,61 @@ async function updateChart() {
     }
 }
 
-// Update every minute
-setInterval(updateChart, 60000);
+// Update more frequently - every 5 seconds
+setInterval(updateChart, 5000);
 updateChart(); // Initial update
+
+// Add realtime temperature updates
+function updateCurrentTemperature() {
+    try {
+        const tempDisplay = document.querySelector('[data-current-temp]');
+        if (!tempDisplay) return;
+        
+        const roomNumber = document.querySelector('[data-room-number]')?.dataset.roomNumber;
+        if (!roomNumber) return;
+        
+        fetch(`/api/room_status/${roomNumber}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.temperature) {
+                    // Update current temperature display without updating chart
+                    tempDisplay.textContent = `${data.temperature.toFixed(1)}°C`;
+                    
+                    // Update room status
+                    const statusElement = document.querySelector('.room-status');
+                    if (statusElement) {
+                        if (data.non_compliant_since) {
+                            statusElement.innerHTML = `<span class="badge bg-danger">${data.policy_violation_type || 'Non-Compliant'}</span>`;
+                        } else if (data.window_state === 'opened' && data.ac_state === 'on') {
+                            statusElement.innerHTML = '<span class="badge bg-warning">Window Open & AC On</span>';
+                        } else if (data.window_state === 'opened') {
+                            statusElement.innerHTML = '<span class="badge bg-info">Window Open</span>';
+                        } else if (data.ac_state === 'on') {
+                            statusElement.innerHTML = '<span class="badge bg-primary">AC On</span>';
+                        } else {
+                            statusElement.innerHTML = '<span class="badge bg-secondary">AC Off</span>';
+                        }
+                    }
+                    
+                    // Update pending action notification if there is one
+                    const pendingElement = document.querySelector('.pending-action');
+                    if (pendingElement) {
+                        if (data.has_pending_event) {
+                            const actionTime = new Date(data.pending_event_time);
+                            pendingElement.innerHTML = `<div class="alert alert-warning">
+                                <strong>Pending Action:</strong> AC will be turned off at ${actionTime.toLocaleTimeString()}
+                            </div>`;
+                            pendingElement.style.display = 'block';
+                        } else {
+                            pendingElement.style.display = 'none';
+                        }
+                    }
+                }
+            });
+    } catch (error) {
+        console.error('Error updating current temperature:', error);
+    }
+}
+
+// Update temperature every 2 seconds (more frequent than chart update)
+setInterval(updateCurrentTemperature, 2000);

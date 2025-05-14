@@ -1114,6 +1114,26 @@ def check_policy(room_number):
     settings = ACSettings.query.filter_by(room_number=room_number).first()
     policy = GlobalPolicy.query.first()
     
+    # Get room status to see if any action needs to be taken
+    status = RoomStatus.query.filter_by(room_number=room_number).first()
+    action = None
+    
+    # Check if there's a pending action for this room
+    if status and status.has_pending_event:
+        # Check if it's time to execute the pending action
+        if status.pending_event_time and datetime.now() >= status.pending_event_time:
+            if status.ac_state == 'on':
+                action = "turn_off_ac"
+            else:
+                action = "turn_on_ac"
+                
+            app.logger.info(f"Sending action {action} to room {room_number}")
+            
+            # Clear the pending event since we're sending it to the client
+            status.has_pending_event = False
+            status.pending_event_time = None
+            db.session.commit()
+    
     intercept = False
     reason = None
     

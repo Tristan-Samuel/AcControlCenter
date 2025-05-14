@@ -80,10 +80,56 @@ async function fetchRecentEvents() {
     }
 }
 
-// Update every 5 seconds
-setInterval(updateTemperatures, 5000);
+// Update more frequently
+setInterval(updateTemperatures, 3000); // Every 3 seconds
 updateTemperatures(); // Initial update
 
-// Update events every 10 seconds
-setInterval(fetchRecentEvents, 10000);
+// Update events more frequently
+setInterval(fetchRecentEvents, 5000); // Every 5 seconds
 fetchRecentEvents(); // Initial events fetch
+
+// Add realtime update for admin dashboard
+function updateAllRoomStatus() {
+    // Only run on admin dashboard
+    if (document.getElementById('admin-dashboard')) {
+        document.querySelectorAll('.room-card').forEach(async card => {
+            const roomNumber = card.getAttribute('data-room-id');
+            if (!roomNumber) return;
+            
+            try {
+                const response = await fetch(`/api/room_status/${roomNumber}`);
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                
+                // Update room status
+                const statusElement = card.querySelector('.room-status');
+                if (statusElement) {
+                    if (data.non_compliant_since) {
+                        statusElement.innerHTML = `<span class="badge bg-danger">${data.policy_violation_type || 'Non-Compliant'}</span>`;
+                    } else if (data.window_state === 'opened' && data.ac_state === 'on') {
+                        statusElement.innerHTML = '<span class="badge bg-warning">Window Open & AC On</span>';
+                    } else if (data.window_state === 'opened') {
+                        statusElement.innerHTML = '<span class="badge bg-info">Window Open</span>';
+                    } else if (data.ac_state === 'on') {
+                        statusElement.innerHTML = '<span class="badge bg-primary">AC On</span>';
+                    } else {
+                        statusElement.innerHTML = '<span class="badge bg-secondary">AC Off</span>';
+                    }
+                }
+                
+                // Update temperature
+                const tempElement = card.querySelector('.room-temperature');
+                if (tempElement && data.temperature) {
+                    tempElement.textContent = `${parseFloat(data.temperature).toFixed(1)}°C`;
+                }
+            } catch (error) {
+                console.error(`Error updating status for room ${roomNumber}:`, error);
+            }
+        });
+    }
+}
+
+// Update admin dashboard every 3 seconds
+setInterval(updateAllRoomStatus, 3000);
+updateAllRoomStatus(); // Initial update
