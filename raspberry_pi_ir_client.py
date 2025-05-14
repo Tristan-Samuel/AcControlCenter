@@ -50,8 +50,8 @@ from datetime import datetime
 
 # Configuration
 ROOM_NUMBER = "7"  # Update this to your room number
-SERVER_URL = "http://example.com:5000"  # Update with your server URL
-API_ENDPOINT = f"{SERVER_URL}/api/receive_data"
+SERVER_URL = "http://localhost:5000"  # URL of the Flask server
+API_ENDPOINT = f"{SERVER_URL}/receive_data"  # API endpoint for sending data
 
 # GPIO Pin Configuration
 WINDOW_SENSOR_PIN = 17  # GPIO pin for window sensor
@@ -141,18 +141,28 @@ def handle_ir_command(code):
     }
     
     # Check if we should intercept this command
-    should_intercept = check_server_policy(code)
+    should_intercept, reason = check_server_policy(code)
     
     if should_intercept:
-        logger.info(f"Command {code} intercepted due to policy restrictions")
+        logger.warning(f"Command {code} intercepted: {reason}")
         # Optionally provide user feedback (beep, LED flash, etc.)
+        
+        # Report the interception to the server
+        send_ir_command_event(code)
+        
+        return False
     else:
         # Process the command
         if code in commands:
             commands[code]()
+            
+            # Report the command to the server
+            send_ir_command_event(code)
         
         # Update server with new state
         send_status_update()
+        
+        return True
 
 # Check if command should be intercepted based on server policy
 def check_server_policy(command):
@@ -165,13 +175,31 @@ def check_server_policy(command):
         
         if response.status_code == 200:
             data = response.json()
-            return data.get("intercept", False)
+            
+            # If server says to intercept, log the reason
+            if data.get("intercept", False):
+                reason = data.get("reason", "Policy violation")
+                logger.warning(f"Command {command} intercepted: {reason}")
+                
+                # Display reason on LCD or LED indicator if available
+                # TODO: Add code for LCD display
+                
+                return True, reason
+            
+            # If there are policy limits, adjust our local settings
+            policy = data.get("policy", {})
+            if policy.get("min_temp") is not None:
+                logger.info(f"Policy min temperature: {policy.get('min_temp')}°C")
+            if policy.get("max_temp") is not None:
+                logger.info(f"Policy max temperature: {policy.get('max_temp')}°C")
+                
+            return False, None
         
     except Exception as e:
         logger.error(f"Error checking policy: {e}")
     
-    # Default to not intercepting if we can't reach the server
-    return False
+    # If server is unreachable or any error occurs, default to allowing the command
+    return False, None
 
 # AC control functions
 def toggle_power():
@@ -223,6 +251,38 @@ def send_ir_command(command):
     # Simulate IR transmission
     logger.info(f"IR signal sent: {command}")
 
+# Send IR command event to server
+def send_ir_command_event(command):
+    """Send IR command information to the server"""
+    try:
+        # Include command information
+        payload = {
+            "room_number": ROOM_NUMBER,
+            "command": command,
+            "temperature": current_status["temperature"]
+        }
+        
+        response = requests.post(f"{SERVER_URL}/receive_data", json=payload)
+        
+        if response.status_code == 200:
+            logger.info(f"IR command {command} sent to server successfully")
+            data = response.json()
+            
+            # Check if command was successful
+            if not data.get("success", True):
+                logger.warning(f"Server rejected command: {data.get('message', 'Unknown reason')}")
+                return False, data.get("message")
+            
+            return True, None
+            
+        else:
+            logger.error(f"Failed to send IR command to server: {response.status_code}")
+            
+    except Exception as e:
+        logger.error(f"Error sending IR command to server: {e}")
+        
+    return False, "Server communication error"
+
 # Send status update to server
 def send_status_update():
     """Send current status to the central server"""
@@ -231,30 +291,50 @@ def send_status_update():
     current_status["last_update"] = datetime.now().isoformat()
     
     try:
-        response = requests.post(API_ENDPOINT, json=current_status)
+        # Include all relevant status information
+        payload = {
+            "room_number": ROOM_NUMBER,
+            "window_state": current_status["window_state"],
+            "ac_state": current_status["ac_state"],
+            "temperature": current_status["temperature"]
+        }
+        
+        response = requests.post(f"{SERVER_URL}/receive_data", json=payload)
+        
         if response.status_code == 200:
             data = response.json()
-            logger.info(f"Status update sent: {data}")
+            logger.info("Status update sent successfully")
             
             # Check if server wants us to force a state change
             if "force_ac_state" in data:
                 forced_state = data["force_ac_state"]
                 logger.info(f"Server forcing AC state to: {forced_state}")
                 
-                # Update local state
-                ac_state["power"] = forced_state
-                current_status["ac_state"] = forced_state
+                # Only change state if it's different
+                if current_status["ac_state"] != forced_state:
+                    # Update local state
+                    ac_state["power"] = forced_state
+                    current_status["ac_state"] = forced_state
+                    
+                    # Send command to AC
+                    if forced_state == "on":
+                        send_ir_command("POWER_ON")
+                    else:
+                        send_ir_command("POWER_OFF")
+            
+            # Check for any actions required by the server
+            if data.get("action") == "turn_off_ac" and current_status["ac_state"] == "on":
+                logger.warning("Server requested AC turn off")
+                toggle_power()  # Turn off the AC
                 
-                # Send command to AC
-                if forced_state == "on":
-                    send_ir_command("POWER_ON")
-                else:
-                    send_ir_command("POWER_OFF")
+            return True
         else:
             logger.error(f"Failed to send status update: {response.status_code}")
             
     except Exception as e:
         logger.error(f"Error sending status update: {e}")
+        
+    return False
 
 # Background thread for regular status updates
 def status_update_thread():

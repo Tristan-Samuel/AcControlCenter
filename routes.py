@@ -1186,6 +1186,8 @@ def receive_data():
     Receive window/AC data from clients and process it according to rules.
     This handles window state changes, enforces policy rules, and manages
     pending actions like delayed AC shutoff.
+    
+    Also handles IR command events from Raspberry Pi clients.
     """
     app.logger.info("Received data")
     
@@ -1193,6 +1195,146 @@ def receive_data():
     if request.is_json:
         data = request.get_json()  # Parse the incoming JSON data
         room_number = data.get('room_number')
+        
+        # Check if this is an IR command event
+        if 'command' in data:
+            # Process IR command from Raspberry Pi client
+            command = data.get('command')
+            temperature = float(data.get('temperature', 22.0))
+            
+            app.logger.info(f"Received IR command: {command} for room: {room_number}")
+            
+            # Validate room number
+            if not room_number or not command:
+                return jsonify({"message": "Room number and command are required", "status": "error"}), 400
+                
+            # Get room status and settings
+            status = RoomStatus.query.filter_by(room_number=room_number).first()
+            settings = ACSettings.query.filter_by(room_number=room_number).first()
+            policy = GlobalPolicy.query.first()
+            
+            # Create default objects if they don't exist
+            if not status:
+                status = RoomStatus(room_number=room_number)
+                db.session.add(status)
+            
+            if not settings:
+                settings = ACSettings(room_number=room_number)
+                db.session.add(settings)
+            
+            # Process specific IR commands
+            if command.startswith('TEMP_'):
+                # Temperature change command
+                try:
+                    requested_temp = float(command.split('_')[1])
+                    # Update for logging purposes - actual AC unit will be set by IR
+                    status.current_temperature = temperature
+                    
+                    # Check against policy for compliance
+                    is_compliant = True
+                    compliance_issue = None
+                    
+                    if policy and policy.policy_active:
+                        if requested_temp < policy.min_allowed_temp:
+                            is_compliant = False
+                            compliance_issue = f"Temperature below minimum ({policy.min_allowed_temp}°C)"
+                        elif requested_temp > policy.max_allowed_temp:
+                            is_compliant = False
+                            compliance_issue = f"Temperature above maximum ({policy.max_allowed_temp}°C)"
+                    
+                    # Log the event
+                    event = WindowEvent(
+                        room_number=room_number,
+                        window_state=status.window_state,
+                        ac_state=status.ac_state,
+                        temperature=temperature,
+                        policy_compliant=is_compliant,
+                        compliance_issue=compliance_issue
+                    )
+                    db.session.add(event)
+                    db.session.commit()
+                    
+                    return jsonify({
+                        'success': True,
+                        'compliant': is_compliant,
+                        'message': compliance_issue if compliance_issue else 'Temperature set'
+                    })
+                except ValueError:
+                    return jsonify({'success': False, 'message': 'Invalid temperature value'})
+                    
+            elif command == 'POWER_ON' or command == 'POWER':
+                # Power toggle command - check policy
+                # Check if we're turning on and need to enforce max temperature
+                if settings.max_temp_locked and temperature > settings.max_temperature:
+                    return jsonify({
+                        'success': False,
+                        'intercept': True,
+                        'message': f'Temperature above max allowed ({settings.max_temperature}°C)'
+                    })
+                
+                # Check if force on is disabled
+                if not settings.force_on_enabled:
+                    return jsonify({
+                        'success': False,
+                        'intercept': True,
+                        'message': 'Force turn ON has been disabled by administrator'
+                    })
+                
+                # Check scheduled shutoff policy
+                if policy and policy.scheduled_shutoff_active:
+                    # Get current time
+                    now = datetime.now().time()
+                    
+                    # Check if we're in the shutoff period
+                    in_shutoff_period = time_in_range(
+                        policy.scheduled_shutoff_time,
+                        policy.scheduled_startup_time,
+                        now
+                    )
+                    
+                    # Check if it's a weekend
+                    is_weekend = datetime.now().weekday() >= 5  # 5=Saturday, 6=Sunday
+                    
+                    if in_shutoff_period and (policy.apply_shutoff_weekends or not is_weekend):
+                        if not settings.schedule_override:
+                            return jsonify({
+                                'success': False, 
+                                'intercept': True,
+                                'message': 'Outside of allowed operating hours'
+                            })
+                
+                # If we got here, command is allowed
+                # Update status - AC state should toggle
+                status.ac_state = 'on' if status.ac_state == 'off' else 'off'
+                status.current_temperature = temperature
+                
+                # Log the event
+                event = WindowEvent(
+                    room_number=room_number,
+                    window_state=status.window_state,
+                    ac_state=status.ac_state,
+                    temperature=temperature
+                )
+                db.session.add(event)
+                db.session.commit()
+                
+                return jsonify({'success': True, 'message': f'AC turned {status.ac_state}'})
+                
+            else:
+                # Other commands (mode, fan speed, etc.) - just log them
+                event = WindowEvent(
+                    room_number=room_number,
+                    window_state=status.window_state,
+                    ac_state=status.ac_state,
+                    temperature=temperature,
+                    compliance_issue=f"IR command: {command}"
+                )
+                db.session.add(event)
+                db.session.commit()
+                
+                return jsonify({'success': True, 'message': f'Command {command} processed'})
+        
+        # Standard window/AC state update
         window_state = data.get('window_state')
         ac_state = data.get('ac_state', 'off')
         temperature = data.get('temperature')
