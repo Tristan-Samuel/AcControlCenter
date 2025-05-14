@@ -653,6 +653,17 @@ def admin_guide():
     return render_template('admin_guide.html')
 
 
+@app.route('/admin_documentation')
+@login_required
+def admin_documentation():
+    """Display comprehensive technical documentation for system administrators"""
+    if not current_user.is_admin:
+        flash('You must be an admin to access system documentation', 'error')
+        return redirect(url_for('user_guide'))
+    
+    return render_template('admin_documentation.html')
+
+
 @app.route('/test_interface')
 @login_required
 def test_interface():

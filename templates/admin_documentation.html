@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">AC Control System - Administrator Documentation</h1>
+    
+    <div class="alert alert-primary">
+        <i data-feather="info" class="me-2"></i>
+        This documentation provides administrators with detailed information about system capabilities, configuration options, and best practices.
+    </div>
+    
+    <div class="row">
+        <div class="col-md-3 mb-4">
+            <div class="list-group sticky-top" style="top: 20px;">
+                <a href="#system-architecture" class="list-group-item list-group-item-action">System Architecture</a>
+                <a href="#admin-features" class="list-group-item list-group-item-action">Admin Features</a>
+                <a href="#policy-management" class="list-group-item list-group-item-action">Policy Management</a>
+                <a href="#compliance-monitoring" class="list-group-item list-group-item-action">Compliance Monitoring</a>
+                <a href="#advanced-settings" class="list-group-item list-group-item-action">Advanced Settings</a>
+                <a href="#security" class="list-group-item list-group-item-action">Security Considerations</a>
+                <a href="#best-practices" class="list-group-item list-group-item-action">Best Practices</a>
+                <a href="#troubleshooting" class="list-group-item list-group-item-action">Troubleshooting</a>
+            </div>
+        </div>
+        
+        <div class="col-md-9">
+            <div id="system-architecture" class="card mb-4">
+                <div class="card-header">
+                    <h2 class="card-title h4">System Architecture</h2>
+                </div>
+                <div class="card-body">
+                    <h3 class="h5">Overview</h3>
+                    <p>The AC Control System uses a client-server architecture built on Flask with SQLAlchemy for database operations. The system consists of:</p>
+                    <ul>
+                        <li><strong>Web Interface:</strong> Browser-based control panel for users and administrators</li>
+                        <li><strong>Database:</strong> Stores user accounts, room settings, events, policies, and status information</li>
+                        <li><strong>Scheduler:</strong> Handles automated tasks like delayed AC shutoff and compliance checks</li>
+                        <li><strong>API:</strong> Receives data from sensors and processes room events</li>
+                        <li><strong>Email Service:</strong> Sends notifications to users when configured</li>
+                    </ul>
+                    
+                    <h3 class="h5">Data Flow</h3>
+                    <p>The system processes data in the following sequence:</p>
+                    <ol>
+                        <li>Sensors detect window state changes and temperature readings</li>
+                        <li>Data is sent to the system via the API</li>
+                        <li>The system processes the data against rules and policies</li>
+                        <li>If needed, actions are scheduled (e.g., delayed AC shutoff)</li>
+                        <li>Room status is updated and displayed to users</li>
+                        <li>Notifications are sent if configured</li>
+                    </ol>
+                    
+                    <h3 class="h5">Database Schema</h3>
+                    <p>The key database entities are:</p>
+                    <ul>
+                        <li><strong>User:</strong> Account information and credentials</li>
+                        <li><strong>ACSettings:</strong> Room-specific AC configuration</li>
+                        <li><strong>WindowEvent:</strong> History of window and AC state changes</li>
+                        <li><strong>PendingWindowEvent:</strong> Scheduled actions waiting to be processed</li>
+                        <li><strong>RoomStatus:</strong> Current state of windows, AC, and temperature</li>
+                        <li><strong>GlobalPolicy:</strong> System-wide policy settings</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div id="admin-features" class="card mb-4">
+                <div class="card-header">
+                    <h2 class="card-title h4">Administrator Features</h2>
+                </div>
+                <div class="card-body">
+                    <h3 class="h5">Admin Dashboard</h3>
+                    <p>The admin dashboard provides a centralized view of all rooms in the system. From here, you can:</p>
+                    <ul>
+                        <li>View all room temperatures and statuses at a glance</li>
+                        <li>See which rooms have open windows or active AC</li>
+                        <li>Monitor compliance with energy policies</li>
+                        <li>Access detailed settings for any room</li>
+                        <li>Navigate to policy management</li>
+                    </ul>
+                    
+                    <h3 class="h5">Room Management</h3>
+                    <p>As an administrator, you have enhanced control over room settings:</p>
+                    <ul>
+                        <li><strong>Settings Lock:</strong> Prevent users from changing their room settings</li>
+                        <li><strong>Temperature Lock:</strong> Specifically lock just the temperature setting</li>
+                        <li><strong>Force Turn ON Blocking:</strong> Disable the force turn ON button to prevent policy violations</li>
+                        <li><strong>Schedule Override:</strong> Exempt specific rooms from scheduled shutoff times</li>
+                    </ul>
+                    
+                    <h3 class="h5">User Management</h3>
+                    <p>Administrators can manage user accounts through the admin interface:</p>
+                    <ul>
+                        <li>View all user accounts</li>
+                        <li>Reset user passwords or PINs when needed</li>
+                        <li>Create new user accounts</li>
+                        <li>Assign users to rooms</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div id="policy-management" class="card mb-4">
+                <div class="card-header">
+                    <h2 class="card-title h4">Policy Management</h2>
+                </div>
+                <div class="card-body">
+                    <h3 class="h5">Global Policies</h3>
+                    <p>The Policy Management page allows you to configure system-wide policies:</p>
+                    <ul>
+                        <li><strong>Temperature Limits:</strong> Set minimum and maximum allowed temperatures</li>
+                        <li><strong>Energy Conservation:</strong> Enable conservation mode and set target temperatures</li>
+                        <li><strong>Scheduled Shutoff:</strong> Configure automatic AC shutoff during non-business hours</li>
+                    </ul>
+                    
+                    <h3 class="h5">Temperature Policy</h3>
+                    <p>The temperature policy enforces energy efficiency and comfort parameters:</p>
+                    <ul>
+                        <li><strong>Minimum Temperature:</strong> Prevents rooms from getting too cold (default 18°C)</li>
+                        <li><strong>Maximum Temperature:</strong> Prevents AC from being set too high (default 26°C)</li>
+                        <li><strong>Auto-correction:</strong> System will automatically adjust AC settings that violate policy</li>
+                        <li><strong>Enforcement Delay:</strong> System will allow temporary violations but correct after 10 seconds</li>
+                    </ul>
+                    
+                    <h3 class="h5">Scheduled Shutoff</h3>
+                    <p>Configure automatic AC management based on time of day:</p>
+                    <ul>
+                        <li><strong>Shutoff Time:</strong> When ACs should automatically turn off (e.g., end of business day)</li>
+                        <li><strong>Startup Time:</strong> When ACs are allowed to turn back on (e.g., beginning of business day)</li>
+                        <li><strong>Weekend Settings:</strong> Whether to apply shutoff schedule on weekends</li>
+                        <li><strong>Room Exemptions:</strong> Allow certain rooms to override the schedule</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div id="compliance-monitoring" class="card mb-4">
+                <div class="card-header">
+                    <h2 class="card-title h4">Compliance Monitoring</h2>
+                </div>
+                <div class="card-body">
+                    <h3 class="h5">Compliance Metrics</h3>
+                    <p>The system tracks compliance with energy policies using several metrics:</p>
+                    <ul>
+                        <li><strong>Window Open Minutes:</strong> How long windows were open with AC running</li>
+                        <li><strong>Temperature Deviation:</strong> How much room temperature deviates from policy</li>
+                        <li><strong>Policy Violations:</strong> Count of specific policy rule violations</li>
+                        <li><strong>Overall Score:</strong> Combined compliance score (0-100%)</li>
+                    </ul>
+                    
+                    <h3 class="h5">Event Logging</h3>
+                    <p>All window and AC events are logged with policy compliance information:</p>
+                    <ul>
+                        <li>Timestamp of event</li>
+                        <li>Window state (opened/closed)</li>
+                        <li>AC state (on/off)</li>
+                        <li>Temperature at time of event</li>
+                        <li>Whether the event was policy compliant</li>
+                        <li>Description of any compliance issues</li>
+                    </ul>
+                    
+                    <h3 class="h5">Reports</h3>
+                    <p>The system can generate reports for compliance and energy usage:</p>
+                    <ul>
+                        <li>Room compliance rankings</li>
+                        <li>Energy efficiency estimates</li>
+                        <li>Policy violation patterns</li>
+                        <li>Historical temperature data</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div id="advanced-settings" class="card mb-4">
+                <div class="card-header">
+                    <h2 class="card-title h4">Advanced Settings</h2>
+                </div>
+                <div class="card-body">
+                    <h3 class="h5">Force Turn ON Controls</h3>
+                    <p>You can manage whether users can override the system's automatic AC control:</p>
+                    <ul>
+                        <li><strong>Enable/Disable Force Turn ON:</strong> Control whether users can manually turn on AC when policy would prevent it</li>
+                        <li><strong>Policy Override:</strong> Configure which policies can be overridden by users</li>
+                        <li><strong>Override Duration:</strong> Set how long manual overrides remain active</li>
+                    </ul>
+                    
+                    <h3 class="h5">Non-Compliant Temperature Handling</h3>
+                    <p>Configure how the system handles temperatures outside policy limits:</p>
+                    <ul>
+                        <li><strong>Too Cold Response:</strong> What happens when temperature is below minimum (adjust or shut off)</li>
+                        <li><strong>Too Hot Response:</strong> What happens when temperature is above maximum (notify or adjust)</li>
+                        <li><strong>Enforcement Delay:</strong> How long to wait before enforcing (default 10 seconds)</li>
+                        <li><strong>Notification Threshold:</strong> When to send alerts about non-compliance</li>
+                    </ul>
+                    
+                    <h3 class="h5">Testing Interface</h3>
+                    <p>The testing interface allows administrators to:</p>
+                    <ul>
+                        <li>Simulate window events for any room</li>
+                        <li>Test temperature scenarios and policy enforcement</li>
+                        <li>Verify delayed shutoff behavior</li>
+                        <li>Test notification systems</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div id="security" class="card mb-4">
+                <div class="card-header">
+                    <h2 class="card-title h4">Security Considerations</h2>
+                </div>
+                <div class="card-body">
+                    <h3 class="h5">Authentication</h3>
+                    <p>The system uses multiple authentication methods:</p>
+                    <ul>
+                        <li><strong>Username/Password:</strong> Standard login credentials</li>
+                        <li><strong>Room Number/PIN:</strong> Simplified access for room users</li>
+                        <li><strong>Password Hashing:</strong> All credentials are securely hashed</li>
+                    </ul>
+                    
+                    <h3 class="h5">Authorization</h3>
+                    <p>User permissions are controlled via role-based access:</p>
+                    <ul>
+                        <li><strong>Regular Users:</strong> Can only access and modify their assigned room</li>
+                        <li><strong>Administrators:</strong> Can access all rooms and system settings</li>
+                        <li><strong>Session Management:</strong> Sessions are managed securely with timeouts</li>
+                    </ul>
+                    
+                    <h3 class="h5">Data Protection</h3>
+                    <p>The system protects sensitive data through:</p>
+                    <ul>
+                        <li>Input validation on all forms</li>
+                        <li>CSRF protection for all POST requests</li>
+                        <li>Database record isolation between users</li>
+                        <li>Secure email communications</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div id="best-practices" class="card mb-4">
+                <div class="card-header">
+                    <h2 class="card-title h4">Best Practices</h2>
+                </div>
+                <div class="card-body">
+                    <h3 class="h5">Policy Configuration</h3>
+                    <p>Recommendations for effective policy management:</p>
+                    <ul>
+                        <li>Set temperature limits based on seasonal needs</li>
+                        <li>Configure shutoff times matching actual building usage</li>
+                        <li>Enable weekend shutoff when the building is typically unoccupied</li>
+                        <li>Start with lenient policies and gradually tighten as users adapt</li>
+                    </ul>
+                    
+                    <h3 class="h5">User Training</h3>
+                    <p>Help users understand the system:</p>
+                    <ul>
+                        <li>Provide orientation for new users</li>
+                        <li>Explain the automatic shutoff feature and its benefits</li>
+                        <li>Demonstrate how to properly use the force controls</li>
+                        <li>Educate about energy conservation goals</li>
+                    </ul>
+                    
+                    <h3 class="h5">Monitoring & Maintenance</h3>
+                    <p>Keep the system running smoothly:</p>
+                    <ul>
+                        <li>Regularly review compliance metrics</li>
+                        <li>Adjust policies based on observed patterns</li>
+                        <li>Check for rooms with frequent policy violations</li>
+                        <li>Ensure sensor data is accurate and reliable</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div id="troubleshooting" class="card mb-4">
+                <div class="card-header">
+                    <h2 class="card-title h4">Troubleshooting</h2>
+                </div>
+                <div class="card-body">
+                    <h3 class="h5">Common Issues</h3>
+                    <p>Solutions to frequently encountered problems:</p>
+                    
+                    <div class="accordion" id="troubleshootingAccordion">
+                        <div class="accordion-item">
+                            <h4 class="accordion-header" id="issueTemperature">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTemperature" aria-expanded="false" aria-controls="collapseTemperature">
+                                    Temperature readings appear incorrect
+                                </button>
+                            </h4>
+                            <div id="collapseTemperature" class="accordion-collapse collapse" aria-labelledby="issueTemperature" data-bs-parent="#troubleshootingAccordion">
+                                <div class="accordion-body">
+                                    <p>If temperature readings seem inaccurate:</p>
+                                    <ol>
+                                        <li>Check the sensor placement and ensure it's not near heat sources</li>
+                                        <li>Verify that the sensor is functioning properly</li>
+                                        <li>Use the testing interface to manually submit accurate temperature data</li>
+                                        <li>Consider recalibrating the temperature sensors</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="accordion-item">
+                            <h4 class="accordion-header" id="issueAutoShutoff">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAutoShutoff" aria-expanded="false" aria-controls="collapseAutoShutoff">
+                                    Automatic shutoff not working
+                                </button>
+                            </h4>
+                            <div id="collapseAutoShutoff" class="accordion-collapse collapse" aria-labelledby="issueAutoShutoff" data-bs-parent="#troubleshootingAccordion">
+                                <div class="accordion-body">
+                                    <p>If the AC is not shutting off when windows open:</p>
+                                    <ol>
+                                        <li>Verify that auto-shutoff is enabled in room settings</li>
+                                        <li>Check that the shutoff delay is not set too high</li>
+                                        <li>Ensure window sensors are reporting state changes correctly</li>
+                                        <li>Confirm that the AC control interface is properly connected</li>
+                                        <li>Use the testing interface to verify the shutoff logic is working</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="accordion-item">
+                            <h4 class="accordion-header" id="issueNotifications">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNotifications" aria-expanded="false" aria-controls="collapseNotifications">
+                                    Email notifications not being received
+                                </button>
+                            </h4>
+                            <div id="collapseNotifications" class="accordion-collapse collapse" aria-labelledby="issueNotifications" data-bs-parent="#troubleshootingAccordion">
+                                <div class="accordion-body">
+                                    <p>If email notifications are not working:</p>
+                                    <ol>
+                                        <li>Verify that email notifications are enabled in room settings</li>
+                                        <li>Check that user email addresses are correct</li>
+                                        <li>Ensure the email server configuration is correct</li>
+                                        <li>Check spam folders for filtered notifications</li>
+                                        <li>Use the test email function to verify the email service is working</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="accordion-item">
+                            <h4 class="accordion-header" id="issuePolicy">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePolicy" aria-expanded="false" aria-controls="collapsePolicy">
+                                    Policy not being enforced
+                                </button>
+                            </h4>
+                            <div id="collapsePolicy" class="accordion-collapse collapse" aria-labelledby="issuePolicy" data-bs-parent="#troubleshootingAccordion">
+                                <div class="accordion-body">
+                                    <p>If global policies aren't being applied:</p>
+                                    <ol>
+                                        <li>Check that the "Policy Active" toggle is enabled</li>
+                                        <li>Verify that room-specific overrides aren't in effect</li>
+                                        <li>Ensure the policy settings are properly saved</li>
+                                        <li>Check scheduler logs for policy enforcement actions</li>
+                                        <li>Restart the scheduler if policies still aren't applied</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h3 class="h5 mt-4">System Diagnostics</h3>
+                    <p>For more serious issues, use the following diagnostic approaches:</p>
+                    <ul>
+                        <li>Check application logs for errors or warnings</li>
+                        <li>Verify database connectivity and integrity</li>
+                        <li>Test sensor communication directly</li>
+                        <li>Restart the server if necessary</li>
+                        <li>Consult the system documentation for technical details</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="text-center mb-4">
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary me-2">
+                    <i data-feather="arrow-left" class="me-1"></i>Back to Admin Dashboard
+                </a>
+                <a href="{{ url_for('policy_management') }}" class="btn btn-success">
+                    <i data-feather="settings" class="me-1"></i>Manage Policies
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

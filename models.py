@@ -74,6 +74,7 @@ class ACSettings(db.Model):
     email_notifications = db.Column(db.Boolean, default=True)
     settings_locked = db.Column(db.Boolean, default=False)
     max_temp_locked = db.Column(db.Boolean, default=False)  # Locks max temperature separately
+    force_on_enabled = db.Column(db.Boolean, default=True)  # Whether Force Turn ON is allowed for this room
     
     # Schedule override settings
     schedule_override = db.Column(db.Boolean, default=False)  # Whether this room is exempt from global schedule
@@ -118,6 +119,10 @@ class RoomStatus(db.Model):
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
     has_pending_event = db.Column(db.Boolean, default=False)  # Whether there's a pending action for this room
     pending_event_time = db.Column(db.DateTime, nullable=True)  # When the pending action will occur
+    
+    # Temperature policy compliance tracking
+    non_compliant_since = db.Column(db.DateTime, nullable=True)  # When temperature became non-compliant
+    policy_violation_type = db.Column(db.String(50), nullable=True)  # Type of violation (too low, too high, etc.)
     
     def __init__(self, **kwargs):
         """Initialize a room status with kwargs support"""
