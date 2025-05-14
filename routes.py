@@ -218,12 +218,12 @@ def toggle_lock(room_number):
         return redirect(url_for('room_dashboard', room_number=room_number))
 
 
-@app.route('/toggle_max_temp_lock/<room_number>', methods=['POST'])
+@app.route('/toggle_min_temp_lock/<room_number>', methods=['POST'])
 @login_required
-def toggle_max_temp_lock(room_number):
-    # Ensure only admin users can toggle the max temp lock
+def toggle_min_temp_lock(room_number):
+    # Ensure only admin users can toggle the min temp lock
     if not current_user.is_admin:
-        flash("You do not have permission to lock/unlock the max temperature.",
+        flash("You do not have permission to lock/unlock the minimum temperature.",
               "danger")
         return redirect(url_for('room_dashboard', room_number=room_number))
 
@@ -233,12 +233,12 @@ def toggle_max_temp_lock(room_number):
         flash("No settings found for this room.", "danger")
         return redirect(url_for('room_dashboard', room_number=room_number))
 
-    # Toggle the max temp lock state
-    settings.max_temp_locked = not settings.max_temp_locked
+    # Toggle the min temp lock state
+    settings.min_temp_locked = not settings.min_temp_locked
     db.session.commit()
 
     flash(
-        f"Max temperature setting {'locked' if settings.max_temp_locked else 'unlocked'} successfully.",
+        f"Minimum temperature setting {'locked' if settings.min_temp_locked else 'unlocked'} successfully.",
         "success")
 
     # For admin users, we need to use admin_login pattern instead of room_dashboard
@@ -589,8 +589,8 @@ def update_settings():
             else:
                 # Convert from Fahrenheit to Celsius for storage
                 from temperature_utils import fahrenheit_to_celsius
-                fahrenheit_temp = float(request.form['max_temperature'])
-                settings.max_temperature = fahrenheit_to_celsius(fahrenheit_temp)
+                fahrenheit_temp = float(request.form['min_temperature'])
+                settings.min_temperature = fahrenheit_to_celsius(fahrenheit_temp)
                 settings.auto_shutoff = 'auto_shutoff' in request.form
                 settings.shutoff_delay = int(request.form.get('shutoff_delay', 30))
                 settings.email_notifications = 'email_notifications' in request.form
@@ -600,8 +600,8 @@ def update_settings():
             try:
                 # Convert from Fahrenheit to Celsius for storage
                 from temperature_utils import fahrenheit_to_celsius
-                fahrenheit_temp = float(request.form['max_temperature'])
-                settings.max_temperature = fahrenheit_to_celsius(fahrenheit_temp)
+                fahrenheit_temp = float(request.form['min_temperature'])
+                settings.min_temperature = fahrenheit_to_celsius(fahrenheit_temp)
             except Exception:
                 pass
 
@@ -741,7 +741,7 @@ def get_temperature(room_number):
     settings = ACSettings.query.filter_by(room_number=room_number).first()
     user = User.query.filter_by(room_number=room_number).first()
 
-    if settings and user and current_temp > settings.max_temperature and settings.email_notifications:
+    if settings and user and current_temp > settings.min_temperature and settings.email_notifications:
         # Import here to avoid circular imports
         from email_utils import send_temperature_alert
         send_temperature_alert(user.email, room_number, round(current_temp, 1))
@@ -792,11 +792,11 @@ def get_room_status(room_number):
     # Convert temperature to Fahrenheit
     celsius_temp = room_status.current_temperature
     fahrenheit_temp = celsius_to_fahrenheit(celsius_temp)
-    max_temp_f = celsius_to_fahrenheit(settings.max_temperature)
+    min_temp_f = celsius_to_fahrenheit(settings.min_temperature)
 
     return jsonify({
-        'max_temperature': settings.max_temperature,
-        'max_temperature_f': max_temp_f,
+        'min_temperature': settings.min_temperature,
+        'min_temperature_f': min_temp_f,
         'auto_shutoff': settings.auto_shutoff,
         'email_notifications': settings.email_notifications,
         'window_state': room_status.window_state,
@@ -1346,11 +1346,11 @@ def check_policy(room_number):
     # Check if this is power on and settings are locked
     if command == "POWER_ON" or command == "POWER":
         # Check if max temperature enforcement is active
-        if settings.max_temp_locked and current_temp <= settings.max_temperature:
+        if settings.max_temp_locked and current_temp <= settings.min_temperature:
             intercept = False  # Allow turning on if temperature is below max
-        elif settings.max_temp_locked and current_temp > settings.max_temperature:
+        elif settings.max_temp_locked and current_temp > settings.min_temperature:
             intercept = True
-            reason = f"Temperature above max allowed ({settings.max_temperature}°C)"
+            reason = f"Temperature above max allowed ({settings.min_temperature}°C)"
             
         # Check if force on is disabled
         if not settings.force_on_enabled:
@@ -1476,11 +1476,11 @@ def receive_data():
             elif command == 'POWER_ON' or command == 'POWER':
                 # Power toggle command - check policy
                 # Check if we're turning on and need to enforce max temperature
-                if settings.max_temp_locked and temperature > settings.max_temperature:
+                if settings.max_temp_locked and temperature > settings.min_temperature:
                     return jsonify({
                         'success': False,
                         'intercept': True,
-                        'message': f'Temperature above max allowed ({settings.max_temperature}°C)'
+                        'message': f'Temperature above max allowed ({settings.min_temperature}°C)'
                     })
                 
                 # Check if force on is disabled
@@ -1763,7 +1763,7 @@ def receive_data():
         return jsonify({
             "message": "Data received and logged successfully",
             "ac_state": new_ac_state,
-            "max_temperature": settings.max_temperature,
+            "min_temperature": settings.min_temperature,
             "has_pending_event": room_status.has_pending_event,
             "pending_event_time": room_status.pending_event_time.isoformat() if room_status.pending_event_time else None,
             "is_compliant": is_compliant,

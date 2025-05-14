@@ -101,20 +101,20 @@
                     <input type="hidden" name="room_number" value="{{ room_number }}">
                     <input type="hidden" name="is_admin" value="{{ 'true' if is_admin else 'false' }}">
                     <div class="mb-3">
-                        <label for="max_temperature" class="form-label">Maximum Temperature (°F)</label>
-                        <input type="number" class="form-control" id="max_temperature" name="max_temperature"
-                               value="{{ (settings.max_temperature * 9/5 + 32) | round(1) }}" step="1" min="65" max="86"
-                               {% if settings.max_temp_locked and is_admin == False %}disabled{% endif %}>
+                        <label for="min_temperature" class="form-label">Minimum Temperature (°F)</label>
+                        <input type="number" class="form-control" id="min_temperature" name="min_temperature"
+                               value="{{ settings.min_temperature | round(1) }}" step="1" min="65" max="86"
+                               {% if settings.min_temp_locked and is_admin == False %}disabled{% endif %}>
                     </div>
                     
                     {% if is_admin %}
-                        <button type="submit" class="btn btn-warning" id="toggleMaxTempLockBtn"
-                                formaction="{{ url_for('toggle_max_temp_lock', room_number=room_number) }}" 
+                        <button type="submit" class="btn btn-warning" id="toggleMinTempLockBtn"
+                                formaction="{{ url_for('toggle_min_temp_lock', room_number=room_number) }}" 
                                 formmethod="POST">
-                            {% if settings.max_temp_locked %}
-                                Unlock Max Temperature
+                            {% if settings.min_temp_locked %}
+                                Unlock Min Temperature
                             {% else %}
-                                Lock Max Temperature
+                                Lock Min Temperature
                             {% endif %}
                         </button>
                     {% endif %}

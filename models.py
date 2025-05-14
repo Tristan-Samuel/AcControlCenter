@@ -68,12 +68,12 @@ class GlobalPolicy(db.Model):
 class ACSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     room_number = db.Column(db.String(10), db.ForeignKey('user.room_number'))
-    max_temperature = db.Column(db.Float, default=24.0)
+    min_temperature = db.Column(db.Float, default=68.0)  # Minimum allowed temperature in Fahrenheit (20°C)
     auto_shutoff = db.Column(db.Boolean, default=True)
     shutoff_delay = db.Column(db.Integer, default=30)  # Delay in seconds before AC shuts off
     email_notifications = db.Column(db.Boolean, default=True)
     settings_locked = db.Column(db.Boolean, default=False)
-    max_temp_locked = db.Column(db.Boolean, default=False)  # Locks max temperature separately
+    min_temp_locked = db.Column(db.Boolean, default=False)  # Locks minimum temperature separately
     force_on_enabled = db.Column(db.Boolean, default=True)  # Whether Force Turn ON is allowed for this room
     
     # Schedule override settings

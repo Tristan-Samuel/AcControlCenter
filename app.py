@@ -178,7 +178,7 @@ def update_compliance_metrics():
             return
             
         # Get all rooms
-        rooms = User.query.filter(User.room_number.isnot(None)).all()
+        rooms = User.query.filter(User.room_number != None).all()
         
         for room in rooms:
             try:
@@ -276,17 +276,14 @@ def check_temperature_compliance():
             if room.has_pending_event:
                 continue
                 
-            # Check if temperature violates policy
+            # Check if temperature violates policy - for AC systems we're concerned with cooling too much
             is_compliant = True
             compliance_issue = None
             
             if room.current_temperature < policy.min_allowed_temp:
+                # Temperature too cold - this is our main concern for AC systems
                 is_compliant = False
-                compliance_issue = f"Temperature too low (min: {policy.min_allowed_temp}°C)"
-                
-            elif room.current_temperature > policy.max_allowed_temp:
-                is_compliant = False
-                compliance_issue = f"Temperature too high (max: {policy.max_allowed_temp}°C)"
+                compliance_issue = f"Temperature too cold (min: {policy.min_allowed_temp}°C)"
             
             # Handle compliance status change
             if not is_compliant:
@@ -306,14 +303,13 @@ def check_temperature_compliance():
                         room.pending_event_time = scheduled_time
                         
                         # Create pending event
-                        pending_event = PendingWindowEvent(
-                            room_number=room.room_number,
-                            window_state=room.window_state,
-                            ac_state=room.ac_state,
-                            temperature=room.current_temperature,
-                            scheduled_action_time=scheduled_time,
-                            event_type='temperature_violation'
-                        )
+                        pending_event = PendingWindowEvent()
+                        pending_event.room_number = room.room_number
+                        pending_event.window_state = room.window_state
+                        pending_event.ac_state = room.ac_state
+                        pending_event.temperature = room.current_temperature
+                        pending_event.scheduled_action_time = scheduled_time
+                        pending_event.event_type = 'temperature_violation'
                         db.session.add(pending_event)
                         db.session.commit()
                         
@@ -349,7 +345,7 @@ with app.app_context():
         logging.info("Created default global policy")
     
     # Initialize RoomStatus for all existing rooms
-    users = User.query.filter(User.room_number.isnot(None)).all()
+    users = User.query.filter(User.room_number != None).all()
     for user in users:
         status = RoomStatus.query.filter_by(room_number=user.room_number).first()
         if not status:

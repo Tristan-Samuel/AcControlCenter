@@ -25,7 +25,7 @@
                             <tr>
                                 <th>Room</th>
                                 <th>Current Temperature</th>
-                                <th>Max Temperature</th>
+                                <th>Min Temperature</th>
                                 <th>Auto-shutoff</th>
                                 <th>Notifications</th>
                                 <th>Status</th>
@@ -38,7 +38,7 @@
                             <tr>
                                 <td>{{ room.room_number }}</td>
                                 <td id="temp-{{ room.room_number }}">--°F</td>
-                                <td>{{ "%.1f"|format(settings.max_temperature * 9/5 + 32) }}°F</td>
+                                <td>{{ "%.1f"|format(settings.min_temperature) }}°F</td>
                                 <td>
                                     <i data-feather="{{ 'check-circle' if settings.auto_shutoff else 'x-circle' }}"></i>
                                 </td>
