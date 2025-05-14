@@ -518,9 +518,9 @@ def get_temperature(room_number):
     if not current_user.is_admin and current_user.room_number != room_number:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # For now, generate mock temperature data
-    # This will be replaced with actual sensor data from Raspberry Pi
-    current_temp = random.uniform(20.0, 28.0)
+    # Get current temperature from room status
+    room_status = RoomStatus.query.filter_by(room_number=room_number).first()
+    current_temp = room_status.current_temperature if room_status else 22.0
 
     # Check if temperature exceeds max temperature setting
     settings = ACSettings.query.filter_by(room_number=room_number).first()
