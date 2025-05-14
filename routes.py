@@ -4,7 +4,7 @@ from flask_mail import Message
 from app import app, db, login_manager, mail
 from models import User, ACSettings, WindowEvent, SessionAtributes, PendingWindowEvent, GlobalPolicy, RoomStatus
 import random  # For mock temperature data
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 
 
 @login_manager.user_loader
@@ -86,26 +86,62 @@ def room_dashboard():
     if current_user.is_admin:
         return redirect(url_for('admin_dashboard'))
 
-    app.logger.debug(
-        f"Accessing room dashboard for user: {current_user.username}")
-    settings = ACSettings.query.filter_by(
-        room_number=current_user.room_number).first()
+    app.logger.debug(f"Accessing room dashboard for user: {current_user.username}")
+    
+    room_number = current_user.room_number
+    
+    # Get or create room status
+    room_status = RoomStatus.query.filter_by(room_number=room_number).first()
+    if not room_status:
+        # Get last window event to initialize status
+        last_event = WindowEvent.query.filter_by(room_number=room_number)\
+            .order_by(WindowEvent.timestamp.desc()).first()
+        
+        if last_event:
+            room_status = RoomStatus(
+                room_number=room_number,
+                current_temperature=last_event.temperature,
+                window_state=last_event.window_state,
+                ac_state=last_event.ac_state,
+                last_updated=last_event.timestamp
+            )
+        else:
+            # Default status if no events exist
+            room_status = RoomStatus(room_number=room_number)
+        
+        db.session.add(room_status)
+        db.session.commit()
+    
+    # Get AC settings for this room
+    settings = ACSettings.query.filter_by(room_number=room_number).first()
     if not settings:
-        settings = ACSettings(room_number=current_user.room_number)
+        settings = ACSettings(room_number=room_number)
         db.session.add(settings)
         db.session.commit()
 
-    events = WindowEvent.query.filter_by(room_number=current_user.room_number)\
+    # Recent window events
+    events = WindowEvent.query.filter_by(room_number=room_number)\
         .order_by(WindowEvent.timestamp.desc()).limit(10).all()
 
-    # Mock current temperature
-    current_temp = random.uniform(20.0, 28.0)
+    # Get current temperature from room status
+    current_temp = room_status.current_temperature
+    
+    # Get global policy
+    policy = GlobalPolicy.query.first()
+    policy_active = policy and policy.policy_active if policy else False
+    
+    # Create session attributes
+    session_attributes = SessionAtributes(room_number, False)
 
     return render_template('room_dashboard.html',
-                           room_number=current_user.room_number,
+                           room_number=room_number,
                            settings=settings,
                            events=events,
-                           current_temp=current_temp)
+                           room_status=room_status,
+                           compliance_score=settings.compliance_score,
+                           policy_active=policy_active,
+                           current_temp=current_temp,
+                           session_attributes=session_attributes)
 
 
 @app.route('/toggle_lock/<room_number>', methods=['POST'])
@@ -191,8 +227,105 @@ def admin_dashboard():
     if not current_user.is_admin:
         return redirect(url_for('room_dashboard'))
 
+    # Get all non-admin users with rooms
     rooms = User.query.filter_by(is_admin=False).all()
-    return render_template('admin_dashboard.html', rooms=rooms)
+    
+    # Get room statuses for status display
+    room_statuses = {}
+    for status in RoomStatus.query.all():
+        room_statuses[status.room_number] = status
+        
+    return render_template('admin_dashboard.html', 
+                          rooms=rooms, 
+                          room_statuses=room_statuses)
+
+
+@app.route('/policy_management')
+@login_required
+def policy_management():
+    """Admin page for managing global policies and viewing compliance"""
+    if not current_user.is_admin:
+        flash('You must be an admin to access this page', 'error')
+        return redirect(url_for('room_dashboard'))
+    
+    # Get global policy or create default
+    policy = GlobalPolicy.query.first()
+    if not policy:
+        policy = GlobalPolicy()
+        db.session.add(policy)
+        db.session.commit()
+    
+    # Get all rooms
+    rooms = User.query.filter_by(is_admin=False).all()
+    
+    # Get room statuses
+    room_statuses = {}
+    for status in RoomStatus.query.all():
+        room_statuses[status.room_number] = status
+    
+    return render_template('policy_management.html', 
+                           policy=policy, 
+                           rooms=rooms,
+                           room_statuses=room_statuses)
+
+
+@app.route('/save_policy', methods=['POST'])
+@login_required
+def save_policy():
+    """Save global policy settings"""
+    if not current_user.is_admin:
+        flash('You must be an admin to manage policies', 'error')
+        return redirect(url_for('room_dashboard'))
+    
+    try:
+        # Get policy or create default
+        policy = GlobalPolicy.query.first()
+        if not policy:
+            policy = GlobalPolicy()
+            db.session.add(policy)
+        
+        # Update policy settings from form
+        policy.policy_active = 'policy_active' in request.form
+        policy.min_allowed_temp = float(request.form.get('min_allowed_temp', 18.0))
+        policy.max_allowed_temp = float(request.form.get('max_allowed_temp', 26.0))
+        
+        # Energy conservation settings
+        policy.energy_conservation_active = 'energy_conservation_active' in request.form
+        policy.conservation_threshold = float(request.form.get('conservation_threshold', 24.0))
+        
+        # Schedule settings
+        policy.scheduled_shutoff_active = 'scheduled_shutoff_active' in request.form
+        policy.apply_shutoff_weekends = 'apply_shutoff_weekends' in request.form
+        
+        # Parse time values
+        shutoff_time = request.form.get('scheduled_shutoff_time', '22:00')
+        startup_time = request.form.get('scheduled_startup_time', '07:00')
+        
+        # Convert to time objects
+        try:
+            hours, minutes = map(int, shutoff_time.split(':'))
+            policy.scheduled_shutoff_time = time(hours, minutes)
+        except Exception as e:
+            app.logger.error(f"Error parsing shutoff time: {str(e)}")
+            # Default to 10 PM if parsing fails
+            policy.scheduled_shutoff_time = time(22, 0)
+            
+        try:
+            hours, minutes = map(int, startup_time.split(':'))
+            policy.scheduled_startup_time = time(hours, minutes)
+        except Exception as e:
+            app.logger.error(f"Error parsing startup time: {str(e)}")
+            # Default to 7 AM if parsing fails
+            policy.scheduled_startup_time = time(7, 0)
+        
+        db.session.commit()
+        flash('Policy settings updated successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error saving policy: {str(e)}")
+        flash(f'Error saving policy: {str(e)}', 'error')
+    
+    return redirect(url_for('policy_management'))
 
 
 @app.route('/update_settings', methods=['POST'])
