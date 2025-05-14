@@ -50,8 +50,37 @@ from datetime import datetime
 
 # Configuration
 ROOM_NUMBER = "7"  # Update this to your room number
-SERVER_URL = "http://localhost:5000"  # URL of the Flask server
-API_ENDPOINT = f"{SERVER_URL}/receive_data"  # API endpoint for sending data
+
+# Server URL - will be updated dynamically if ngrok is available
+SERVER_URL = "http://localhost:5000"  # Local server URL (fallback)
+API_ENDPOINT = None  # Will be set once SERVER_URL is determined
+
+# Flag to indicate if we should try to get ngrok URL
+USE_NGROK = True
+
+def update_server_url():
+    """Update the server URL to use ngrok if available"""
+    global SERVER_URL, API_ENDPOINT
+    
+    if USE_NGROK:
+        try:
+            # Try to get the ngrok URL from the server
+            response = requests.get(f"{SERVER_URL}/api/tunnel_url", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("url") and data.get("status") == "active":
+                    SERVER_URL = data["url"]
+                    logger.info(f"Using ngrok tunnel URL: {SERVER_URL}")
+        except Exception as e:
+            logger.warning(f"Could not get ngrok URL, using local URL: {e}")
+    
+    # Update API endpoint with current SERVER_URL
+    API_ENDPOINT = f"{SERVER_URL}/receive_data"
+    logger.info(f"Server URL set to: {SERVER_URL}")
+    logger.info(f"API endpoint set to: {API_ENDPOINT}")
+
+# Initialize server URL
+update_server_url()
 
 # GPIO Pin Configuration
 WINDOW_SENSOR_PIN = 17  # GPIO pin for window sensor
@@ -339,9 +368,19 @@ def send_status_update():
 # Background thread for regular status updates
 def status_update_thread():
     """Background thread to periodically update status"""
+    update_counter = 0
     while True:
         try:
+            # Send regular status update
             send_status_update()
+            
+            # Every 10 updates (10 minutes), check if ngrok URL has changed
+            update_counter += 1
+            if update_counter >= 10:
+                logger.info("Checking for ngrok URL updates...")
+                update_server_url()
+                update_counter = 0
+                
             time.sleep(60)  # Update every minute
         except Exception as e:
             logger.error(f"Error in status update thread: {e}")

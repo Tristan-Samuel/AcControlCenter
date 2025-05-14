@@ -17,4 +17,5 @@ dependencies = [
     "requests>=2.32.3",
     "apscheduler>=3.11.0",
     "pigpio>=1.78",
+    "pyngrok>=7.2.8",
 ]
