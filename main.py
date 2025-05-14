@@ -39,22 +39,39 @@ if __name__ == "__main__":
     if use_ngrok:
         try:
             print("🌐 REMOTE ACCESS (Internet):")
-            # Use provided token
-            ngrok_tunnel.init_ngrok(NGROK_AUTH_TOKEN)
-            
-            # Start ngrok tunnel
-            ngrok_url = ngrok_tunnel.start_tunnel(port=5001)
-            
-            if ngrok_url:
-                print(f"   {ngrok_url}")
-                print("\n📱 Raspberry Pi clients can connect from anywhere!")
+            # Check if we can connect to ngrok servers
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(3)
+            try:
+                # Try to connect to ngrok.com to test internet connectivity
+                s.connect(("ngrok.com", 443))
+                has_internet = True
+            except (socket.timeout, socket.error):
+                has_internet = False
+            finally:
+                s.close()
                 
-                # Start monitoring thread to keep tunnel alive
-                ngrok_tunnel.start_monitor_thread()
+            if has_internet:
+                # Use provided token
+                ngrok_tunnel.init_ngrok(NGROK_AUTH_TOKEN)
+                
+                # Start ngrok tunnel
+                ngrok_url = ngrok_tunnel.start_tunnel(port=5001)
+                
+                if ngrok_url:
+                    print(f"   {ngrok_url}")
+                    print("\n📱 Raspberry Pi clients can connect from anywhere!")
+                    
+                    # Start monitoring thread to keep tunnel alive
+                    ngrok_tunnel.start_monitor_thread()
+                else:
+                    print("   ⚠️ Ngrok tunnel not established!")
+                    print("   You may have another ngrok session running elsewhere.")
+                    print("   Check https://dashboard.ngrok.com/tunnels\n")
             else:
-                print("   ⚠️ Ngrok tunnel not established!")
-                print("   You may have another ngrok session running elsewhere.")
-                print("   Check https://dashboard.ngrok.com/tunnels\n")
+                print("   ⚠️ No internet connection detected")
+                print("   Ngrok requires internet access to establish tunnels")
+                print("   Remote access is not available\n")
         except Exception as e:
             print(f"   ⚠️ Ngrok error: {e}")
             print("   Remote access is not available\n")
