@@ -90,7 +90,7 @@
                                         {{ event.ac_state }}
                                     </span>
                                 </td>
-                                <td>{{ "%.1f"|format(event.temperature) }}°C</td>
+                                <td>{{ "%.1f"|format(event.temperature * 9/5 + 32) }}°F</td>
                                 <td>
                                     {% if event.policy_compliant %}
                                     <i data-feather="check-circle" class="text-success"></i>

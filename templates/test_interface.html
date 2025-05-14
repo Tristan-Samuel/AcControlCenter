@@ -27,9 +27,10 @@
                             </div>
                             
                             <div class="mb-3">
-                                <label for="temperature" class="form-label">Temperature (°C)</label>
-                                <input type="number" class="form-control" id="temperature" name="temperature" 
-                                       value="22.0" min="15" max="35" step="0.5">
+                                <label for="temperature" class="form-label">Temperature (°F)</label>
+                                <input type="number" class="form-control" id="temperature" name="temperature_f" 
+                                       value="71.6" min="59" max="95" step="0.5">
+                                <small class="form-text text-muted">This will be converted to Celsius for storage</small>
                             </div>
                             
                             <div class="mb-3">
@@ -75,7 +76,7 @@
                                         </tr>
                                         <tr>
                                             <th>Temperature:</th>
-                                            <td>{{ "%.1f"|format(status.current_temperature) }}°C</td>
+                                            <td>{{ "%.1f"|format(celsius_to_fahrenheit(status.current_temperature)) }}°F</td>
                                         </tr>
                                         <tr>
                                             <th>Window State:</th>
@@ -139,7 +140,7 @@
                                 <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                                 <td>{{ event.window_state }}</td>
                                 <td>{{ event.ac_state }}</td>
-                                <td>{{ "%.1f"|format(event.temperature) }}°C</td>
+                                <td>{{ "%.1f"|format(celsius_to_fahrenheit(event.temperature)) }}°F</td>
                                 <td>
                                     {% if event.policy_compliant == False %}
                                     <span class="badge bg-warning" title="{{ event.compliance_issue }}">

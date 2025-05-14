@@ -11,7 +11,12 @@
                 <div class="d-flex justify-content-between mb-3">
                     <div>
                         <i data-feather="thermometer" class="me-2"></i>
-                        <span data-current-temp class="fs-4">{{ "%.1f"|format(current_temp_f) }}°F</span>
+                        <span data-current-temp class="fs-4">
+                        {% if current_temp_f is defined %}
+                            {{ "%.1f"|format(current_temp_f) }}°F
+                        {% else %}
+                            {{ "%.1f"|format(current_temp * 9/5 + 32) }}°F
+                        {% endif %}</span>
                     </div>
                     <div class="text-end">
                         {% if room_status %}

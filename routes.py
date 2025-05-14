@@ -93,6 +93,10 @@ def admin_login():
     # Use real temperature from room status
     current_temp = room_status.current_temperature
     
+    # Convert to Fahrenheit for display
+    from temperature_utils import celsius_to_fahrenheit
+    current_temp_f = celsius_to_fahrenheit(current_temp)
+    
     # Create session attributes
     session_attributes = SessionAtributes(room_number2, True)
 
@@ -103,7 +107,8 @@ def admin_login():
                            room_status=room_status,
                            compliance_score=settings.compliance_score,
                            session_attributes=session_attributes,
-                           current_temp=current_temp)
+                           current_temp=current_temp,
+                           current_temp_f=current_temp_f)
 
 
 @app.route('/room_dashboard')
@@ -393,6 +398,9 @@ def export_events():
     # Order by timestamp descending
     events = query.order_by(WindowEvent.timestamp.desc()).all()
     
+    # Import temperature conversion utility
+    from temperature_utils import celsius_to_fahrenheit
+
     if format_type == 'csv':
         # Create CSV response
         import csv
@@ -403,17 +411,20 @@ def export_events():
         
         # Write header
         writer.writerow(['ID', 'Room', 'Timestamp', 'Window State', 'AC State', 
-                        'Temperature', 'Policy Compliant', 'Compliance Issue'])
+                        'Temperature (°F)', 'Policy Compliant', 'Compliance Issue'])
         
         # Write data rows
         for event in events:
+            # Convert temperature to Fahrenheit
+            temp_f = celsius_to_fahrenheit(event.temperature) if event.temperature is not None else None
+            
             writer.writerow([
                 event.id,
                 event.room_number,
                 event.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
                 event.window_state,
                 event.ac_state,
-                f"{event.temperature:.1f}",
+                f"{temp_f:.1f}" if temp_f is not None else "",
                 'Yes' if event.policy_compliant else 'No',
                 event.compliance_issue or ''
             ])
@@ -428,6 +439,9 @@ def export_events():
         # Return JSON by default
         events_data = []
         for event in events:
+            # Convert temperature to Fahrenheit
+            temp_f = celsius_to_fahrenheit(event.temperature) if event.temperature is not None else None
+            
             events_data.append({
                 'id': event.id,
                 'room_number': event.room_number,
@@ -435,6 +449,8 @@ def export_events():
                 'window_state': event.window_state,
                 'ac_state': event.ac_state,
                 'temperature': event.temperature,
+                'temperature_f': temp_f,
+                'unit': 'F',  # Indicate preferred unit
                 'policy_compliant': event.policy_compliant,
                 'compliance_issue': event.compliance_issue
             })
@@ -488,12 +504,20 @@ def save_policy():
         
         # Update policy settings from form
         policy.policy_active = 'policy_active' in request.form
-        policy.min_allowed_temp = float(request.form.get('min_allowed_temp', 18.0))
-        policy.max_allowed_temp = float(request.form.get('max_allowed_temp', 26.0))
+        
+        # Convert Fahrenheit to Celsius for storage
+        from temperature_utils import fahrenheit_to_celsius
+        
+        # Temperature settings (convert from Fahrenheit to Celsius)
+        min_f = float(request.form.get('min_allowed_temp', 64.4))  # Default 18°C = 64.4°F
+        max_f = float(request.form.get('max_allowed_temp', 78.8))  # Default 26°C = 78.8°F
+        policy.min_allowed_temp = fahrenheit_to_celsius(min_f)
+        policy.max_allowed_temp = fahrenheit_to_celsius(max_f)
         
         # Energy conservation settings
         policy.energy_conservation_active = 'energy_conservation_active' in request.form
-        policy.conservation_threshold = float(request.form.get('conservation_threshold', 24.0))
+        conservation_f = float(request.form.get('conservation_threshold', 75.2))  # Default 24°C = 75.2°F
+        policy.conservation_threshold = fahrenheit_to_celsius(conservation_f)
         
         # Schedule settings
         policy.scheduled_shutoff_active = 'scheduled_shutoff_active' in request.form
@@ -1051,11 +1075,15 @@ def test_interface():
         events = WindowEvent.query.filter_by(room_number=room_number) \
             .order_by(WindowEvent.timestamp.desc()).limit(10).all()
     
+    # Import temperature utilities
+    from temperature_utils import celsius_to_fahrenheit
+    
     return render_template('test_interface.html',
                           room_number=room_number,
                           is_admin=is_admin,
                           status=status,
-                          events=events)
+                          events=events,
+                          celsius_to_fahrenheit=celsius_to_fahrenheit)
 
 
 @app.route('/submit_test_data', methods=['POST'])
@@ -1065,7 +1093,11 @@ def submit_test_data():
     room_number = request.form.get('room_number')
     window_state = request.form.get('window_state')
     ac_state = request.form.get('ac_state')
-    temperature = float(request.form.get('temperature', 22.0))
+    
+    # Get temperature in Fahrenheit and convert to Celsius for storage
+    from temperature_utils import fahrenheit_to_celsius
+    temperature_f = float(request.form.get('temperature_f', 71.6))  # Default is 22°C in Fahrenheit
+    temperature = fahrenheit_to_celsius(temperature_f)
     
     # Validate inputs
     if not room_number or not window_state or not ac_state:

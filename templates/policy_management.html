@@ -37,9 +37,9 @@
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="max_allowed_temp" class="form-label">Maximum Allowed Temperature (°C)</label>
+                                <label for="max_allowed_temp" class="form-label">Maximum Allowed Temperature (°F)</label>
                                 <input type="number" class="form-control" id="max_allowed_temp" name="max_allowed_temp" 
-                                       value="{{ policy.max_allowed_temp }}" min="20" max="30" step="0.5">
+                                       value="{{ (policy.max_allowed_temp * 9/5 + 32) | round(1) }}" min="68" max="86" step="1">
                                 <div class="form-text">Temperatures above this will trigger policy warnings</div>
                             </div>
                         </div>
@@ -59,9 +59,9 @@
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="conservation_threshold" class="form-label">Conservation Threshold (°C)</label>
+                                <label for="conservation_threshold" class="form-label">Conservation Threshold (°F)</label>
                                 <input type="number" class="form-control" id="conservation_threshold" name="conservation_threshold" 
-                                       value="{{ policy.conservation_threshold }}" min="18" max="28" step="0.5">
+                                       value="{{ (policy.conservation_threshold * 9/5 + 32) | round(1) }}" min="64" max="82" step="1">
                                 <div class="form-text">Target temperature for conservation mode</div>
                             </div>
                         </div>
