@@ -1,19 +1,45 @@
 // Update room temperatures periodically
-function updateTemperatures() {
-    document.querySelectorAll('[id^="temp-"]').forEach(element => {
-        // Mock temperature data for demo
-        const temp = (20 + Math.random() * 8).toFixed(1);
-        element.textContent = `${temp}°C`;
-        
-        // Update status based on temperature
+async function updateTemperatures() {
+    document.querySelectorAll('[id^="temp-"]').forEach(async element => {
         const roomNumber = element.id.split('-')[1];
-        const statusElement = document.getElementById(`status-${roomNumber}`);
-        if (parseFloat(temp) > 26) {
-            statusElement.innerHTML = '<span class="badge bg-danger">High Temp</span>';
-        } else if (parseFloat(temp) < 22) {
-            statusElement.innerHTML = '<span class="badge bg-info">Low Temp</span>';
-        } else {
-            statusElement.innerHTML = '<span class="badge bg-success">Normal</span>';
+        
+        try {
+            // Fetch actual temperature from the API
+            const response = await fetch(`/api/room_status/${roomNumber}`);
+            if (!response.ok) {
+                console.error(`Failed to fetch status for room ${roomNumber}: ${response.status}`);
+                return;
+            }
+            
+            const data = await response.json();
+            
+            // Update temperature display
+            if (data && data.temperature) {
+                const temp = parseFloat(data.temperature).toFixed(1);
+                element.textContent = `${temp}°C`;
+                
+                // Update status based on temperature and other factors
+                const statusElement = document.getElementById(`status-${roomNumber}`);
+                
+                if (data.non_compliant_since) {
+                    // Room is in non-compliant state
+                    statusElement.innerHTML = `<span class="badge bg-danger">${data.policy_violation_type || 'Non-Compliant'}</span>`;
+                } else if (data.window_state === 'opened' && data.ac_state === 'on') {
+                    // Window open with AC on
+                    statusElement.innerHTML = '<span class="badge bg-warning">Window Open & AC On</span>';
+                } else if (data.window_state === 'opened') {
+                    // Window open
+                    statusElement.innerHTML = '<span class="badge bg-info">Window Open</span>';
+                } else if (data.ac_state === 'on') {
+                    // AC on
+                    statusElement.innerHTML = '<span class="badge bg-primary">AC On</span>';
+                } else {
+                    // Normal state
+                    statusElement.innerHTML = '<span class="badge bg-success">Normal</span>';
+                }
+            }
+        } catch (error) {
+            console.error(`Error fetching data for room ${roomNumber}:`, error);
         }
     });
 }

@@ -543,6 +543,11 @@ def get_room_status(room_number):
     if not current_user.is_admin and current_user.room_number != room_number:
         return jsonify({'error': 'Unauthorized'}), 403
 
+    # Get room status for real-time data
+    room_status = RoomStatus.query.filter_by(room_number=room_number).first()
+    if not room_status:
+        return jsonify({'error': 'Room status not found'}), 404
+
     settings = ACSettings.query.filter_by(room_number=room_number).first()
     if not settings:
         return jsonify({'error': 'Room not found'}), 404
@@ -551,17 +556,21 @@ def get_room_status(room_number):
     latest_event = WindowEvent.query.filter_by(room_number=room_number)\
         .order_by(WindowEvent.timestamp.desc()).first()
 
+    # Format non_compliant_since for serialization if it exists
+    non_compliant_since = None
+    if room_status.non_compliant_since:
+        non_compliant_since = room_status.non_compliant_since.isoformat()
+
     return jsonify({
-        'max_temperature':
-        settings.max_temperature,
-        'auto_shutoff':
-        settings.auto_shutoff,
-        'email_notifications':
-        settings.email_notifications,
-        'window_state':
-        latest_event.window_state if latest_event else 'unknown',
-        'ac_state':
-        latest_event.ac_state if latest_event else 'unknown'
+        'max_temperature': settings.max_temperature,
+        'auto_shutoff': settings.auto_shutoff,
+        'email_notifications': settings.email_notifications,
+        'window_state': room_status.window_state,
+        'ac_state': room_status.ac_state,
+        'temperature': room_status.current_temperature,
+        'has_pending_event': room_status.has_pending_event,
+        'non_compliant_since': non_compliant_since,
+        'policy_violation_type': room_status.policy_violation_type
     })
 
 
