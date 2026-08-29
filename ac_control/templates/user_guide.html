@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header"><h2 class="h4 mb-0">User Guide</h2></div>
+    <div class="card-body">
+        <p>AC Control Center turns classroom window sensors and IR blasters into a school-wide energy policy. A Raspberry Pi in each room reports temperature and window state; a central Pi decides when the AC may run.</p>
+        <h5>Accounts</h5>
+        <ul>
+            <li><strong>Room accounts</strong> log in with username/password or room number + PIN.</li>
+            <li><strong>Admins</strong> are created with the CLI, never from the public register form.</li>
+        </ul>
+        <h5>Room dashboard</h5>
+        <ul>
+            <li>Temperatures are stored in Celsius and shown in Fahrenheit.</li>
+            <li>Auto-shutoff queues a <code>POWER_OFF</code> for your room Pi when a window stays open.</li>
+            <li>Force ON/OFF buttons queue commands; they run on the next Pi heartbeat.</li>
+            <li>A <em>stale</em> badge means the classroom Pi has not checked in recently.</li>
+        </ul>
+        <p><a class="btn btn-primary" href="{{ url_for('auth.index') }}">Back</a></p>
+    </div>
+</div>
+{% endblock %}

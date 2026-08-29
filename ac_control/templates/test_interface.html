@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between">
+        <h4>System Testing Interface</h4>
+        <a href="{{ url_for('rooms.dashboard') if not is_admin else url_for('admin.dashboard') }}" class="btn btn-secondary">Back</a>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">Simulate window and AC events without classroom hardware. The same policy engine as a real Pi heartbeat is used.</div>
+        <form method="POST" action="{{ url_for('rooms.test_interface') }}" class="mb-4">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="room_number" class="form-label">Room Number</label>
+                        <input type="text" class="form-control" id="room_number" name="room_number"
+                               value="{{ room_number }}" {{ 'readonly' if not is_admin }}>
+                    </div>
+                    <div class="mb-3">
+                        <label for="temperature" class="form-label">Temperature (°F)</label>
+                        <input type="number" class="form-control" id="temperature" name="temperature_f"
+                               value="71.6" min="59" max="95" step="0.5">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Window State</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="window_state" id="window_opened" value="opened">
+                            <label class="form-check-label" for="window_opened">Opened</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="window_state" id="window_closed" value="closed" checked>
+                            <label class="form-check-label" for="window_closed">Closed</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">AC State</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="ac_state" id="ac_on" value="on" checked>
+                            <label class="form-check-label" for="ac_on">ON</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="ac_state" id="ac_off" value="off">
+                            <label class="form-check-label" for="ac_off">OFF</label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Submit Test Data</button>
+                </div>
+                <div class="col-md-6">
+                    {% if status %}
+                    <table class="table">
+                        <tr><th>Room</th><td>{{ status.room_number }}</td></tr>
+                        <tr><th>Temperature</th><td>{{ status.current_temperature | temp_f }}</td></tr>
+                        <tr><th>Window</th><td>{{ status.window_state }}</td></tr>
+                        <tr><th>AC</th><td>{{ status.ac_state }}</td></tr>
+                        <tr><th>Last updated</th><td>{{ status.last_updated }}</td></tr>
+                    </table>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+        <h5>Recent Events</h5>
+        <table class="table">
+            <thead><tr><th>Time</th><th>Window</th><th>AC</th><th>Temp</th></tr></thead>
+            <tbody>
+                {% for event in events %}
+                <tr>
+                    <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ event.window_state }}</td>
+                    <td>{{ event.ac_state }}</td>
+                    <td>{{ event.temperature | temp_f }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

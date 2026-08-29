@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>Global Policy</h4>
+                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Back</a>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.policy') }}">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="policy_active" name="policy_active"
+                               {% if policy.policy_active %}checked{% endif %}>
+                        <label class="form-check-label" for="policy_active"><strong>Policy Active</strong></label>
+                    </div>
+                    <h5>Temperature Policy</h5>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label for="min_allowed_temp" class="form-label">Minimum Allowed (°F)</label>
+                            <input type="number" class="form-control" id="min_allowed_temp" name="min_allowed_temp"
+                                   value="{{ policy.min_allowed_temp | temp_f(false) }}" min="60" max="75" step="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="max_allowed_temp" class="form-label">Maximum Allowed (°F)</label>
+                            <input type="number" class="form-control" id="max_allowed_temp" name="max_allowed_temp"
+                                   value="{{ policy.max_allowed_temp | temp_f(false) }}" min="68" max="86" step="1">
+                        </div>
+                    </div>
+                    <h5>Energy Conservation</h5>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="energy_conservation_active"
+                               name="energy_conservation_active" {% if policy.energy_conservation_active %}checked{% endif %}>
+                        <label class="form-check-label" for="energy_conservation_active">Conservation Mode</label>
+                    </div>
+                    <div class="mb-4 col-md-6">
+                        <label for="conservation_threshold" class="form-label">Conservation floor (°F)</label>
+                        <input type="number" class="form-control" id="conservation_threshold" name="conservation_threshold"
+                               value="{{ policy.conservation_threshold | temp_f(false) }}" min="64" max="82" step="1">
+                    </div>
+                    <h5>Scheduled Shutoff</h5>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="scheduled_shutoff_active"
+                               name="scheduled_shutoff_active" {% if policy.scheduled_shutoff_active %}checked{% endif %}>
+                        <label class="form-check-label" for="scheduled_shutoff_active">Scheduled Shutoff Active</label>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="scheduled_shutoff_time" class="form-label">Shutoff Time</label>
+                            <input type="time" class="form-control" id="scheduled_shutoff_time" name="scheduled_shutoff_time"
+                                   value="{{ policy.scheduled_shutoff_time.strftime('%H:%M') }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="scheduled_startup_time" class="form-label">Startup Time</label>
+                            <input type="time" class="form-control" id="scheduled_startup_time" name="scheduled_startup_time"
+                                   value="{{ policy.scheduled_startup_time.strftime('%H:%M') }}">
+                        </div>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="apply_shutoff_weekends"
+                               name="apply_shutoff_weekends" {% if policy.apply_shutoff_weekends %}checked{% endif %}>
+                        <label class="form-check-label" for="apply_shutoff_weekends">Apply on weekends</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Policy</button>
+                    <a href="{{ url_for('rooms.test_interface') }}" class="btn btn-info">Test Interface</a>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><h4>Room Compliance</h4></div>
+            <div class="card-body">
+                <table class="table">
+                    <thead><tr><th>Room</th><th>Score</th><th></th></tr></thead>
+                    <tbody>
+                        {% for room in rooms %}
+                        {% set settings = room.acsettings %}
+                        <tr>
+                            <td>{{ room.room_number }}</td>
+                            <td>{% if settings %}{{ "%.0f"|format(settings.compliance_score) }}%{% endif %}</td>
+                            <td>
+                                <a class="btn btn-sm btn-primary" href="{{ url_for('admin.view_room', room_number=room.room_number) }}">Open</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

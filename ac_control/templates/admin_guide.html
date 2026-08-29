@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between">
+        <h2 class="h4 mb-0">Admin Guide</h2>
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-primary">Dashboard</a>
+    </div>
+    <div class="card-body">
+        <p>You manage rooms, temperature policy, and per-room device API keys. Classroom Pis authenticate with <code>X-API-Key</code>; the public ngrok URL must not be treated as a secret.</p>
+        <ul>
+            <li>Create rooms under <strong>Users</strong>. Copy the device key onto that room's Pi immediately.</li>
+            <li>Policy temperatures are entered in °F and stored as °C.</li>
+            <li>Scheduled shutoff uses [shutoff time, startup time] wrapping midnight (e.g. 22:00–07:00).</li>
+            <li>Conservation mode raises the effective minimum cooling floor.</li>
+            <li>Open a room from the dashboard to lock settings or exempt it from the night shutoff.</li>
+        </ul>
+        <p>Install, ngrok, and hardware details are in the project README.</p>
+    </div>
+</div>
+{% endblock %}

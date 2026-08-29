@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4>Event Logs</h4>
+        <div>
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary me-2">Back</a>
+            <button id="export-csv" class="btn btn-success">Export CSV</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <label for="room-filter">Room</label>
+                <select id="room-filter" class="form-select">
+                    <option value="all">All Rooms</option>
+                    {% for room in rooms %}
+                    <option value="{{ room.room_number }}" {% if selected_room == room.room_number %}selected{% endif %}>{{ room.room_number }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="event-type">Event Type</label>
+                <select id="event-type" class="form-select">
+                    <option value="all" {% if event_type == 'all' %}selected{% endif %}>All Events</option>
+                    <option value="window_opened" {% if event_type == 'window_opened' %}selected{% endif %}>Window Opened</option>
+                    <option value="window_closed" {% if event_type == 'window_closed' %}selected{% endif %}>Window Closed</option>
+                    <option value="ac_on" {% if event_type == 'ac_on' %}selected{% endif %}>AC On</option>
+                    <option value="ac_off" {% if event_type == 'ac_off' %}selected{% endif %}>AC Off</option>
+                    <option value="policy_violation" {% if event_type == 'policy_violation' %}selected{% endif %}>Policy Violations</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="date-from">From</label>
+                <input type="date" id="date-from" class="form-control" value="{{ date_from }}">
+            </div>
+            <div class="col-md-2">
+                <label for="date-to">To</label>
+                <input type="date" id="date-to" class="form-control" value="{{ date_to }}">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button id="apply-filters" class="btn btn-primary w-100">Apply</button>
+            </div>
+        </div>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th><th>Room</th><th>Timestamp</th><th>Window</th><th>AC</th><th>Temp</th><th>Compliant</th><th>Issue</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                <tr {% if not event.policy_compliant %}class="table-danger"{% endif %}>
+                    <td>{{ event.id }}</td>
+                    <td>{{ event.room_number }}</td>
+                    <td>{{ event.timestamp }}</td>
+                    <td>{{ event.window_state }}</td>
+                    <td>{{ event.ac_state }}</td>
+                    <td>{{ event.temperature | temp_f }}</td>
+                    <td>{{ 'Yes' if event.policy_compliant else 'No' }}</td>
+                    <td>{{ event.compliance_issue or '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="d-flex justify-content-between">
+            <div>Showing {{ events|length }} of {{ total_events }}</div>
+            <ul class="pagination">
+                {% if page > 1 %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('admin.event_logs', page=page-1, room=selected_room, event_type=event_type, date_from=date_from, date_to=date_to) }}">Previous</a></li>
+                {% endif %}
+                {% if page < total_pages %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('admin.event_logs', page=page+1, room=selected_room, event_type=event_type, date_from=date_from, date_to=date_to) }}">Next</a></li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('apply-filters').addEventListener('click', updateFilters);
+document.getElementById('export-csv').addEventListener('click', function () {
+    const params = new URLSearchParams({
+        room: document.getElementById('room-filter').value,
+        event_type: document.getElementById('event-type').value,
+        date_from: document.getElementById('date-from').value,
+        date_to: document.getElementById('date-to').value
+    });
+    window.location.href = '{{ url_for("admin.export_events") }}?' + params.toString();
+});
+function updateFilters() {
+    const params = new URLSearchParams({
+        page: '1',
+        room: document.getElementById('room-filter').value,
+        event_type: document.getElementById('event-type').value,
+        date_from: document.getElementById('date-from').value,
+        date_to: document.getElementById('date-to').value
+    });
+    window.location.href = '{{ url_for("admin.event_logs") }}?' + params.toString();
+}
+</script>
+{% endblock %}

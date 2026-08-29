@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row" data-room-number="{{ room_number }}">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between">
+                <h4>Room {{ room_number }} Status</h4>
+                {% if stale %}
+                    <span class="badge bg-danger">Pi offline / stale</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-3">
+                    <div>
+                        <span data-current-temp class="fs-4">{{ current_temp | temp_f }}</span>
+                    </div>
+                    <div class="text-end">
+                        {% if room_status %}
+                        <div class="d-flex flex-column align-items-end">
+                            <div class="mb-2">
+                                <span class="badge {% if room_status.ac_state == 'on' %}bg-success{% else %}bg-secondary{% endif %} p-2">
+                                    AC: {{ room_status.ac_state|upper }}
+                                </span>
+                            </div>
+                            <div>
+                                <span class="badge {% if room_status.window_state == 'opened' %}bg-warning{% else %}bg-info{% endif %} p-2">
+                                    Window: {{ room_status.window_state|capitalize }}
+                                </span>
+                            </div>
+                            {% if room_status.has_pending_event and room_status.pending_event_time %}
+                            <div class="mt-2">
+                                <span class="badge bg-danger">
+                                    AC shutoff at {{ room_status.pending_event_time.strftime('%H:%M:%S') }}
+                                </span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <canvas id="temperatureChart"></canvas>
+                <div class="mt-3">
+                    <h5>AC Control</h5>
+                    <div class="d-flex gap-2">
+                        <form method="POST" action="{{ url_for('rooms.force_ac_state', room_number=room_number, state='on') }}">
+                            <button type="submit" class="btn btn-success">Force Turn ON</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('rooms.force_ac_state', room_number=room_number, state='off') }}">
+                            <button type="submit" class="btn btn-danger">Force Turn OFF</button>
+                        </form>
+                    </div>
+                    <p class="small text-muted mt-2">Commands are queued until the classroom Pi heartbeats.</p>
+                </div>
+                {% if compliance_score is defined %}
+                <div class="mt-4">
+                    <h5>Compliance Score</h5>
+                    {% set score_class = 'bg-success' if compliance_score >= 80 else 'bg-warning' if compliance_score >= 50 else 'bg-danger' %}
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar {{ score_class }}" style="width: {{ compliance_score }}%;">
+                            {{ "%.1f"|format(compliance_score) }}%
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header"><h4>AC Settings</h4></div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('rooms.update_settings', room_number=room_number) }}" id="settingsForm">
+                    <div class="mb-3">
+                        <label for="min_temperature" class="form-label">Minimum Temperature (°F)</label>
+                        <input type="number" class="form-control" id="min_temperature" name="min_temperature"
+                               value="{{ (settings.min_temperature | temp_f(false)) }}" step="1" min="60" max="86"
+                               {% if settings.min_temp_locked and not is_admin_view %}disabled{% endif %}>
+                    </div>
+                    {% if is_admin_view %}
+                        <button type="submit" class="btn btn-warning mb-3"
+                                formaction="{{ url_for('admin.toggle_min_temp_lock', room_number=room_number) }}">
+                            {% if settings.min_temp_locked %}Unlock Min Temperature{% else %}Lock Min Temperature{% endif %}
+                        </button>
+                    {% endif %}
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="auto_shutoff" name="auto_shutoff"
+                               {% if settings.auto_shutoff %}checked{% endif %}
+                               {% if settings.settings_locked and not is_admin_view %}disabled{% endif %}>
+                        <label class="form-check-label" for="auto_shutoff">Auto-shutoff when window opens</label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="shutoff_delay" class="form-label">Shutoff Delay (seconds)</label>
+                        <input type="number" class="form-control" id="shutoff_delay" name="shutoff_delay"
+                               value="{{ settings.shutoff_delay }}" min="0" max="300" step="5"
+                               {% if settings.settings_locked and not is_admin_view %}disabled{% endif %}>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="email_notifications" name="email_notifications"
+                               {% if settings.email_notifications %}checked{% endif %}
+                               {% if settings.settings_locked and not is_admin_view %}disabled{% endif %}>
+                        <label class="form-check-label" for="email_notifications">Email notifications</label>
+                    </div>
+                    {% if is_admin_view %}
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="force_on_enabled" name="force_on_enabled"
+                               {% if settings.force_on_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="force_on_enabled">Allow Force Turn ON</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="schedule_override" name="schedule_override"
+                               {% if settings.schedule_override %}checked{% endif %}>
+                        <label class="form-check-label" for="schedule_override">Exempt from scheduled shutoff</label>
+                    </div>
+                    {% endif %}
+                    {% if settings.settings_locked and not is_admin_view %}
+                    <div class="alert alert-info">Settings are locked by an administrator.</div>
+                    {% endif %}
+                    {% if is_admin_view %}
+                        <button type="submit" class="btn btn-warning"
+                                formaction="{{ url_for('admin.toggle_lock', room_number=room_number) }}">
+                            {% if settings.settings_locked %}Unlock Settings{% else %}Lock Settings{% endif %}
+                        </button>
+                        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Admin Dashboard</a>
+                    {% endif %}
+                    <button type="submit" class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+                    <a href="{{ url_for('rooms.user_guide') }}" class="btn btn-info">How to Use</a>
+                    <a href="{{ url_for('rooms.test_interface', room_number=room_number) }}" class="btn btn-secondary">Test Window/AC</a>
+                </form>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h4>Recent Events</h4></div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr><th>Time</th><th>Window</th><th>AC</th><th>Temperature</th></tr>
+                    </thead>
+                    <tbody id="eventsTable">
+                        {% for event in events %}
+                        <tr>
+                            <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td>{{ event.window_state }}</td>
+                            <td>{{ event.ac_state }}</td>
+                            <td>{{ event.temperature | temp_f }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/temperature_chart.js') }}"></script>
+{% endblock %}

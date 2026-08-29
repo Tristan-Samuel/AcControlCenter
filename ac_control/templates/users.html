@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between">
+        <h4>Room users</h4>
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Back</a>
+    </div>
+    <div class="card-body">
+        {% if new_device_key %}
+        <div class="alert alert-warning">
+            <p class="mb-1"><strong>Device API key for room {{ new_room }} (shown once):</strong></p>
+            <code class="user-select-all">{{ new_device_key }}</code>
+            <p class="mb-0 mt-2 small">Put this in the classroom Pi <code>DEVICE_API_KEY</code>. It is stored hashed and cannot be recovered.</p>
+        </div>
+        {% endif %}
+
+        <h5>Create a classroom</h5>
+        <form method="POST" class="row g-3 mb-4">
+            <div class="col-md-3">
+                <label class="form-label" for="room_number">Room</label>
+                <input class="form-control" name="room_number" id="room_number" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="username">Username</label>
+                <input class="form-control" name="username" id="username" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="email">Email</label>
+                <input class="form-control" type="email" name="email" id="email" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="password">Password</label>
+                <input class="form-control" type="password" name="password" id="password" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="pin">PIN (optional)</label>
+                <input class="form-control" name="pin" id="pin" maxlength="4" pattern="[0-9]{4}">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button class="btn btn-primary" type="submit">Create room</button>
+            </div>
+        </form>
+
+        <table class="table">
+            <thead>
+                <tr><th>Room</th><th>Username</th><th>Email</th><th>Device key</th></tr>
+            </thead>
+            <tbody>
+                {% for room in rooms %}
+                <tr>
+                    <td>{{ room.room_number }}</td>
+                    <td>{{ room.username }}</td>
+                    <td>{{ room.email }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin.rotate_key', room_number=room.room_number) }}" class="d-inline">
+                            <button class="btn btn-sm btn-outline-warning" type="submit">Rotate key</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4">No rooms yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

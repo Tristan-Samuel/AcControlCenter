@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="admin-dashboard" class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>Room Overview</h4>
+                <div>
+                    <a href="{{ url_for('admin.admin_guide') }}" class="btn btn-info me-2">Admin Guide</a>
+                    <a href="{{ url_for('admin.event_logs') }}" class="btn btn-secondary me-2">Event Logs</a>
+                    <a href="{{ url_for('admin.users') }}" class="btn btn-outline-light me-2">Users</a>
+                    <a href="{{ url_for('admin.policy') }}" class="btn btn-primary">Policy</a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Room</th>
+                                <th>Temperature</th>
+                                <th>Min temp</th>
+                                <th>Auto-shutoff</th>
+                                <th>Status</th>
+                                <th>Heartbeat</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for room in rooms %}
+                            {% set settings = room.acsettings %}
+                            {% set status = room_statuses.get(room.room_number) %}
+                            <tr class="room-card" data-room-id="{{ room.room_number }}">
+                                <td>{{ room.room_number }}</td>
+                                <td id="temp-{{ room.room_number }}" class="room-temperature">
+                                    {% if status %}{{ status.current_temperature | temp_f }}{% else %}—{% endif %}
+                                </td>
+                                <td>{% if settings %}{{ settings.min_temperature | temp_f }}{% endif %}</td>
+                                <td>{{ 'Yes' if settings and settings.auto_shutoff else 'No' }}</td>
+                                <td id="status-{{ room.room_number }}" class="room-status">
+                                    {% if status and status.window_state == 'opened' and status.ac_state == 'on' %}
+                                        <span class="badge bg-warning">Window Open &amp; AC On</span>
+                                    {% elif status and status.ac_state == 'on' %}
+                                        <span class="badge bg-primary">AC On</span>
+                                    {% elif status %}
+                                        <span class="badge bg-secondary">AC Off</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">No data</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if status and status.is_stale() %}
+                                        <span class="badge bg-danger">Stale</span>
+                                    {% elif status %}
+                                        <span class="badge bg-success">Live</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Never</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a class="btn btn-sm btn-primary" href="{{ url_for('admin.view_room', room_number=room.room_number) }}">Open</a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="7">No rooms yet. Create one under Users.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <a href="{{ url_for('admin.test_email') }}" class="btn btn-outline-secondary btn-sm">Send test email</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
