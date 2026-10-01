@@ -13,14 +13,24 @@ async function updateTemperatures() {
             }
             const statusElement = document.getElementById(`status-${roomNumber}`);
             if (!statusElement) return;
+            const beat = document.getElementById(`beat-${roomNumber}`);
+            if (beat) {
+                beat.innerHTML = data.stale
+                    ? '<span class="badge bg-danger">Stale</span>'
+                    : '<span class="badge bg-success">Live</span>';
+            }
+            const react = document.getElementById(`react-${roomNumber}`);
+            if (react && data.simulation && data.simulation.reaction) {
+                react.textContent = data.simulation.reaction;
+            }
             if (data.stale) {
                 statusElement.innerHTML = '<span class="badge bg-danger">Stale</span>';
             } else if (data.non_compliant_since) {
                 statusElement.innerHTML = `<span class="badge bg-danger">${data.policy_violation_type || 'Non-Compliant'}</span>`;
-            } else if (data.window_state === 'opened' && data.ac_state === 'on') {
-                statusElement.innerHTML = '<span class="badge bg-warning">Window Open &amp; AC On</span>';
-            } else if (data.window_state === 'opened') {
-                statusElement.innerHTML = '<span class="badge bg-info">Window Open</span>';
+            } else if (data.door_state === 'opened' && data.ac_state === 'on') {
+                statusElement.innerHTML = '<span class="badge bg-warning">Door Open &amp; AC On</span>';
+            } else if (data.door_state === 'opened') {
+                statusElement.innerHTML = '<span class="badge bg-info">Door Open</span>';
             } else if (data.ac_state === 'on') {
                 statusElement.innerHTML = '<span class="badge bg-primary">AC On</span>';
             } else {
@@ -44,9 +54,10 @@ async function fetchRecentEvents() {
         if (eventsTable && data.events && data.events.length > 0) {
             eventsTable.innerHTML = data.events.map((event) => {
                 const temp = (event.temperature_f || (event.temperature * 9 / 5 + 32)).toFixed(1);
+                const door = event.door_state || event.window_state || '';
                 return `<tr>
                     <td>${event.timestamp}</td>
-                    <td>${event.window_state}</td>
+                    <td>${door}</td>
                     <td>${event.ac_state}</td>
                     <td>${temp}°F</td>
                 </tr>`;

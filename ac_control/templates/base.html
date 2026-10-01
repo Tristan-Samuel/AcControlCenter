@@ -42,6 +42,13 @@
     </nav>
 
     <main class="container my-4">
+        {% if simulation_mode %}
+        <div class="alert alert-warning">
+            Simulation mode. These classrooms are fake ESP32s on this Pi, so policy, shutoff, and the buzzer run against scripted heartbeats.
+            Admin login is <strong>demo</strong>. The password is in <code>simulation-login.txt</code> next to the database
+            (on the Pi: <code>/var/lib/ac-control/simulation-login.txt</code>).
+        </div>
+        {% endif %}
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}

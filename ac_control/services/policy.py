@@ -51,6 +51,23 @@ def assess_temperature(
     return True, None
 
 
+def clamp_setpoint_c(
+    temp_c: float,
+    policy: GlobalPolicy | None,
+    min_floor_c: float | None = None,
+) -> float:
+    """Clamp an IR setpoint to global policy and an optional room cooling floor."""
+    value = float(temp_c)
+    if min_floor_c is not None:
+        value = max(value, float(min_floor_c))
+    if policy and policy.policy_active:
+        value = max(value, float(policy.min_allowed_temp))
+        value = min(value, float(policy.max_allowed_temp))
+        if policy.energy_conservation_active and policy.conservation_threshold is not None:
+            value = max(value, float(policy.conservation_threshold))
+    return value
+
+
 def policy_payload(policy: GlobalPolicy | None) -> dict:
     if not policy:
         return {}

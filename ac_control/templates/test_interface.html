@@ -7,7 +7,7 @@
         <a href="{{ url_for('rooms.dashboard') if not is_admin else url_for('admin.dashboard') }}" class="btn btn-secondary">Back</a>
     </div>
     <div class="card-body">
-        <div class="alert alert-info">Simulate window and AC events without classroom hardware. The same policy engine as a real Pi heartbeat is used.</div>
+        <div class="alert alert-info">Simulate door and AC events without classroom hardware. The same policy engine as a real ESP32 heartbeat is used. Window state is stored for a later upgrade and does not shut off the AC yet.</div>
         <form method="POST" action="{{ url_for('rooms.test_interface') }}" class="mb-4">
             <div class="row">
                 <div class="col-md-6">
@@ -22,7 +22,18 @@
                                value="71.6" min="59" max="95" step="0.5">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Window State</label>
+                        <label class="form-label">Door State</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="door_state" id="door_opened" value="opened">
+                            <label class="form-check-label" for="door_opened">Opened</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="door_state" id="door_closed" value="closed" checked>
+                            <label class="form-check-label" for="door_closed">Closed</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Window State (unused for policy)</label>
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="window_state" id="window_opened" value="opened">
                             <label class="form-check-label" for="window_opened">Opened</label>
@@ -49,7 +60,9 @@
                     {% if status %}
                     <table class="table">
                         <tr><th>Room</th><td>{{ status.room_number }}</td></tr>
-                        <tr><th>Temperature</th><td>{{ status.current_temperature | temp_f }}</td></tr>
+                        <tr><th>Ambient</th><td>{{ status.current_temperature | temp_f }}</td></tr>
+                        <tr><th>Setpoint</th><td>{{ status.set_temperature | temp_f }}</td></tr>
+                        <tr><th>Door</th><td>{{ status.door_state }}</td></tr>
                         <tr><th>Window</th><td>{{ status.window_state }}</td></tr>
                         <tr><th>AC</th><td>{{ status.ac_state }}</td></tr>
                         <tr><th>Last updated</th><td>{{ status.last_updated }}</td></tr>
@@ -60,12 +73,12 @@
         </form>
         <h5>Recent Events</h5>
         <table class="table">
-            <thead><tr><th>Time</th><th>Window</th><th>AC</th><th>Temp</th></tr></thead>
+            <thead><tr><th>Time</th><th>Door</th><th>AC</th><th>Temp</th></tr></thead>
             <tbody>
                 {% for event in events %}
                 <tr>
                     <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                    <td>{{ event.window_state }}</td>
+                    <td>{{ event.door_state }}</td>
                     <td>{{ event.ac_state }}</td>
                     <td>{{ event.temperature | temp_f }}</td>
                 </tr>

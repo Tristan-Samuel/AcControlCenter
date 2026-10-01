@@ -31,16 +31,20 @@ def send_email(subject: str, recipients: list[str] | str, body: str) -> bool:
         return False
 
 
-def send_window_alert(email: str, room_number: str) -> bool:
+def send_door_alert(email: str, room_number: str) -> bool:
     return send_email(
-        f"Window open while AC is on — Room {room_number}",
+        f"Door open while AC is on — Room {room_number}",
         email,
         (
-            f"Room {room_number}: a window is open while the AC is running. "
-            "The unit will shut off according to policy if the window stays open.\n\n"
+            f"Room {room_number}: the door is open while the AC is running. "
+            "The unit will shut off according to policy if the door stays open.\n\n"
             "— AC Control Center"
         ),
     )
+
+
+def send_window_alert(email: str, room_number: str) -> bool:
+    return send_door_alert(email, room_number)
 
 
 def send_temperature_alert(email: str, room_number: str, temperature_c: float) -> bool:

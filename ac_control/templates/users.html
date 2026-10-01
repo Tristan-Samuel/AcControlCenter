@@ -11,8 +11,39 @@
         <div class="alert alert-warning">
             <p class="mb-1"><strong>Device API key for room {{ new_room }} (shown once):</strong></p>
             <code class="user-select-all">{{ new_device_key }}</code>
-            <p class="mb-0 mt-2 small">Put this in the classroom Pi <code>DEVICE_API_KEY</code>. It is stored hashed and cannot be recovered.</p>
+            <p class="mb-0 mt-2 small">The ESP32 stores this after enroll, or you can paste it in WiFiManager. It is hashed at rest and cannot be recovered.</p>
         </div>
+        {% endif %}
+
+        {% if pending_devices %}
+        <h5>Unassigned ESP32s</h5>
+        <p class="small text-muted">These boards enrolled by MAC. Assign each to a room; the board picks up a key on its next enroll poll.</p>
+        <table class="table mb-4">
+            <thead>
+                <tr><th>MAC</th><th>Last seen</th><th>Firmware</th><th>Assign to room</th></tr>
+            </thead>
+            <tbody>
+                {% for device in pending_devices %}
+                <tr>
+                    <td><code>{{ device.mac }}</code></td>
+                    <td>{{ device.last_seen }}</td>
+                    <td>{{ device.firmware_info or "—" }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin.assign_device') }}" class="d-flex gap-2">
+                            <input type="hidden" name="mac" value="{{ device.mac }}">
+                            <select class="form-select form-select-sm" name="room_number" required>
+                                <option value="">Room…</option>
+                                {% for room in rooms %}
+                                <option value="{{ room.room_number }}">{{ room.room_number }}</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn btn-sm btn-primary" type="submit">Assign</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
         {% endif %}
 
         <h5>Create a classroom</h5>
@@ -44,7 +75,7 @@
 
         <table class="table">
             <thead>
-                <tr><th>Room</th><th>Username</th><th>Email</th><th>Device key</th></tr>
+                <tr><th>Room</th><th>Username</th><th>Email</th><th>ESP32 MAC</th><th>Device key</th></tr>
             </thead>
             <tbody>
                 {% for room in rooms %}
@@ -53,13 +84,20 @@
                     <td>{{ room.username }}</td>
                     <td>{{ room.email }}</td>
                     <td>
+                        {% if room.acsettings and room.acsettings.device_mac %}
+                            <code>{{ room.acsettings.device_mac }}</code>
+                        {% else %}
+                            <span class="text-muted">Unbound</span>
+                        {% endif %}
+                    </td>
+                    <td>
                         <form method="POST" action="{{ url_for('admin.rotate_key', room_number=room.room_number) }}" class="d-inline">
                             <button class="btn btn-sm btn-outline-warning" type="submit">Rotate key</button>
                         </form>
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="4">No rooms yet.</td></tr>
+                <tr><td colspan="5">No rooms yet.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

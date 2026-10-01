@@ -80,12 +80,14 @@ class ACSettings(db.Model):
     min_temp_locked = db.Column(db.Boolean, default=False, nullable=False)
     force_on_enabled = db.Column(db.Boolean, default=True, nullable=False)
     schedule_override = db.Column(db.Boolean, default=False, nullable=False)
+    buzz_on_open = db.Column(db.Boolean, default=False, nullable=False)
 
     window_open_minutes = db.Column(db.Integer, default=0, nullable=False)
     temperature_deviation = db.Column(db.Float, default=0.0, nullable=False)
     compliance_score = db.Column(db.Float, default=100.0, nullable=False)
 
     device_key_hash = db.Column(db.String(256), nullable=True)
+    device_mac = db.Column(db.String(17), unique=True, nullable=True, index=True)
 
     def set_device_key(self, raw_key: str) -> None:
         self.device_key_hash = generate_password_hash(raw_key, method=HASH_METHOD)
@@ -105,6 +107,7 @@ class WindowEvent(db.Model):
     room_number = db.Column(db.String(10), db.ForeignKey("user.room_number"), index=True)
     timestamp = db.Column(db.DateTime, default=utc_now, nullable=False, index=True)
     window_state = db.Column(db.String(10), nullable=False)
+    door_state = db.Column(db.String(10), default="closed", nullable=False)
     ac_state = db.Column(db.String(10), nullable=False)
     temperature = db.Column(db.Float, nullable=True)
     policy_compliant = db.Column(db.Boolean, default=True, nullable=False)
@@ -116,11 +119,12 @@ class PendingWindowEvent(db.Model):
     room_number = db.Column(db.String(10), db.ForeignKey("user.room_number"), index=True)
     timestamp = db.Column(db.DateTime, default=utc_now, nullable=False)
     window_state = db.Column(db.String(10), nullable=True)
+    door_state = db.Column(db.String(10), nullable=True)
     ac_state = db.Column(db.String(10), nullable=True)
     temperature = db.Column(db.Float, nullable=True)
     scheduled_action_time = db.Column(db.DateTime, nullable=False, index=True)
     processed = db.Column(db.Boolean, default=False, nullable=False)
-    event_type = db.Column(db.String(32), default="window_open", nullable=False)
+    event_type = db.Column(db.String(32), default="door_open", nullable=False)
 
 
 class RoomStatus(db.Model):
@@ -129,7 +133,9 @@ class RoomStatus(db.Model):
         db.String(10), db.ForeignKey("user.room_number"), unique=True, nullable=False
     )
     current_temperature = db.Column(db.Float, default=22.0, nullable=False)
+    set_temperature = db.Column(db.Float, default=20.0, nullable=False)
     window_state = db.Column(db.String(10), default="closed", nullable=False)
+    door_state = db.Column(db.String(10), default="closed", nullable=False)
     ac_state = db.Column(db.String(10), default="off", nullable=False)
     last_updated = db.Column(db.DateTime, default=utc_now, nullable=False)
     has_pending_event = db.Column(db.Boolean, default=False, nullable=False)
@@ -150,3 +156,15 @@ class DeviceCommand(db.Model):
     command = db.Column(db.String(32), nullable=False)
     created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
     delivered = db.Column(db.Boolean, default=False, nullable=False, index=True)
+
+
+class PendingDevice(db.Model):
+    """ESP32 that has enrolled by MAC but is not yet bound to a room."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    mac = db.Column(db.String(17), unique=True, nullable=False, index=True)
+    first_seen = db.Column(db.DateTime, default=utc_now, nullable=False)
+    last_seen = db.Column(db.DateTime, default=utc_now, nullable=False)
+    firmware_info = db.Column(db.String(200), nullable=True)
+    assigned_room = db.Column(db.String(10), nullable=True)
+    issued_api_key = db.Column(db.String(128), nullable=True)

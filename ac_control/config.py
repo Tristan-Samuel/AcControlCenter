@@ -36,8 +36,14 @@ class Config:
 
     ALLOW_PUBLIC_REGISTRATION = _bool_env("ALLOW_PUBLIC_REGISTRATION", False)
     PREFERRED_URL_SCHEME = os.environ.get("PREFERRED_URL_SCHEME", "http")
+    PUBLIC_BASE_URL = (os.environ.get("PUBLIC_BASE_URL") or "").rstrip("/")
+    ENROLL_TOKEN = os.environ.get("ENROLL_TOKEN", "")
     STALE_AFTER_SECONDS = int(os.environ.get("STALE_AFTER_SECONDS", "180"))
     SCHEDULER_DISABLED = _bool_env("SCHEDULER_DISABLED", False)
+    # Fake ESP32s that exercise the real heartbeat and policy path.
+    SIMULATION_MODE = _bool_env("SIMULATION_MODE", False)
+    SIMULATION_ADMIN_PASSWORD = os.environ.get("SIMULATION_ADMIN_PASSWORD", "")
+    SIMULATION_TICK_SECONDS = int(os.environ.get("SIMULATION_TICK_SECONDS", "5"))
 
     RATELIMIT_ENABLED = True
     RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")

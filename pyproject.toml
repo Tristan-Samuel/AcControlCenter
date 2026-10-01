@@ -1,7 +1,7 @@
 [project]
 name = "ac-control-center"
 version = "1.0.0"
-description = "School AC control: central Flask server plus classroom Raspberry Pi clients"
+description = "School AC control: central Flask server on a Raspberry Pi, ESP32 classroom nodes"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

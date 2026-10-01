@@ -7,13 +7,16 @@
             <div class="card-header d-flex justify-content-between">
                 <h4>Room {{ room_number }} Status</h4>
                 {% if stale %}
-                    <span class="badge bg-danger">Pi offline / stale</span>
+                    <span class="badge bg-danger">ESP32 offline / stale</span>
                 {% endif %}
             </div>
             <div class="card-body">
                 <div class="d-flex justify-content-between mb-3">
                     <div>
+                        <div class="text-muted small">Ambient</div>
                         <span data-current-temp class="fs-4">{{ current_temp | temp_f }}</span>
+                        <div class="text-muted small mt-2">Setpoint</div>
+                        <span data-set-temp class="fs-5">{{ set_temp | temp_f }}</span>
                     </div>
                     <div class="text-end">
                         {% if room_status %}
@@ -24,8 +27,8 @@
                                 </span>
                             </div>
                             <div>
-                                <span class="badge {% if room_status.window_state == 'opened' %}bg-warning{% else %}bg-info{% endif %} p-2">
-                                    Window: {{ room_status.window_state|capitalize }}
+                                <span class="badge {% if room_status.door_state == 'opened' %}bg-warning{% else %}bg-info{% endif %} p-2">
+                                    Door: {{ room_status.door_state|capitalize }}
                                 </span>
                             </div>
                             {% if room_status.has_pending_event and room_status.pending_event_time %}
@@ -34,6 +37,9 @@
                                     AC shutoff at {{ room_status.pending_event_time.strftime('%H:%M:%S') }}
                                 </span>
                             </div>
+                            {% endif %}
+                            {% if device_mac %}
+                            <div class="mt-2 small text-muted">MAC {{ device_mac }}</div>
                             {% endif %}
                         </div>
                         {% endif %}
@@ -50,7 +56,7 @@
                             <button type="submit" class="btn btn-danger">Force Turn OFF</button>
                         </form>
                     </div>
-                    <p class="small text-muted mt-2">Commands are queued until the classroom Pi heartbeats.</p>
+                    <p class="small text-muted mt-2">Commands are queued until the classroom ESP32 heartbeats. ON restores the last setpoint.</p>
                 </div>
                 {% if compliance_score is defined %}
                 <div class="mt-4">
@@ -73,7 +79,14 @@
             <div class="card-body">
                 <form method="POST" action="{{ url_for('rooms.update_settings', room_number=room_number) }}" id="settingsForm">
                     <div class="mb-3">
-                        <label for="min_temperature" class="form-label">Minimum Temperature (°F)</label>
+                        <label for="set_temperature" class="form-label">Setpoint (°F)</label>
+                        <input type="number" class="form-control" id="set_temperature" name="set_temperature"
+                               value="{{ (set_temp | temp_f(false)) }}" step="1" min="60" max="86"
+                               {% if settings.settings_locked and not is_admin_view %}disabled{% endif %}>
+                        <div class="form-text">Last temperature the IR transmitter should send when the unit turns on.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="min_temperature" class="form-label">Minimum cooling floor (°F)</label>
                         <input type="number" class="form-control" id="min_temperature" name="min_temperature"
                                value="{{ (settings.min_temperature | temp_f(false)) }}" step="1" min="60" max="86"
                                {% if settings.min_temp_locked and not is_admin_view %}disabled{% endif %}>
@@ -88,7 +101,13 @@
                         <input type="checkbox" class="form-check-input" id="auto_shutoff" name="auto_shutoff"
                                {% if settings.auto_shutoff %}checked{% endif %}
                                {% if settings.settings_locked and not is_admin_view %}disabled{% endif %}>
-                        <label class="form-check-label" for="auto_shutoff">Auto-shutoff when window opens</label>
+                        <label class="form-check-label" for="auto_shutoff">Auto-shutoff when door opens</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="buzz_on_open" name="buzz_on_open"
+                               {% if settings.buzz_on_open %}checked{% endif %}
+                               {% if settings.settings_locked and not is_admin_view %}disabled{% endif %}>
+                        <label class="form-check-label" for="buzz_on_open">Buzz while door is open</label>
                     </div>
                     <div class="mb-3">
                         <label for="shutoff_delay" class="form-label">Shutoff Delay (seconds)</label>
@@ -109,7 +128,7 @@
                         <label class="form-check-label" for="force_on_enabled">Allow Force Turn ON</label>
                     </div>
                     <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="schedule_override" name="schedule_override"
+                        <input class="form-check-input" type="checkbox" id="schedule_override" name="schedule_override"
                                {% if settings.schedule_override %}checked{% endif %}>
                         <label class="form-check-label" for="schedule_override">Exempt from scheduled shutoff</label>
                     </div>
@@ -126,7 +145,7 @@
                     {% endif %}
                     <button type="submit" class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
                     <a href="{{ url_for('rooms.user_guide') }}" class="btn btn-info">How to Use</a>
-                    <a href="{{ url_for('rooms.test_interface', room_number=room_number) }}" class="btn btn-secondary">Test Window/AC</a>
+                    <a href="{{ url_for('rooms.test_interface', room_number=room_number) }}" class="btn btn-secondary">Test Door/AC</a>
                 </form>
             </div>
         </div>
@@ -135,13 +154,13 @@
             <div class="card-body">
                 <table class="table">
                     <thead>
-                        <tr><th>Time</th><th>Window</th><th>AC</th><th>Temperature</th></tr>
+                        <tr><th>Time</th><th>Door</th><th>AC</th><th>Temperature</th></tr>
                     </thead>
                     <tbody id="eventsTable">
                         {% for event in events %}
                         <tr>
                             <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                            <td>{{ event.window_state }}</td>
+                            <td>{{ event.door_state }}</td>
                             <td>{{ event.ac_state }}</td>
                             <td>{{ event.temperature | temp_f }}</td>
                         </tr>

@@ -16,12 +16,14 @@ from ac_control.models import (
     utc_now,
 )
 from ac_control.services.commands import enqueue_command, pop_commands
-from ac_control.services.mailer import send_window_alert
+from ac_control.services.mailer import send_door_alert
 from ac_control.services.policy import (
     assess_temperature,
+    clamp_setpoint_c,
     in_scheduled_shutoff,
     policy_payload,
 )
+from ac_control.services.remote import evaluate_remote_command
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,9 @@ def get_or_create_status(room_number: str) -> RoomStatus:
     status = RoomStatus.query.filter_by(room_number=room_number).first()
     if status:
         return status
-    status = RoomStatus(room_number=room_number)
+    settings = ACSettings.query.filter_by(room_number=room_number).first()
+    setpoint = settings.min_temperature if settings else 20.0
+    status = RoomStatus(room_number=room_number, set_temperature=setpoint)
     db.session.add(status)
     return status
 
@@ -62,31 +66,64 @@ def cancel_pending(room_number: str, event_type: str | None = None) -> None:
         pending.processed = True
 
 
+def effective_setpoint(status: RoomStatus, settings: ACSettings, policy: GlobalPolicy | None) -> float:
+    raw = status.set_temperature
+    if raw is None:
+        raw = settings.min_temperature or 20.0
+    return clamp_setpoint_c(raw, policy, settings.min_temperature)
+
+
+def queue_resume_ac(
+    room_number: str,
+    status: RoomStatus,
+    settings: ACSettings,
+    policy: GlobalPolicy | None,
+) -> float:
+    setpoint = effective_setpoint(status, settings, policy)
+    status.set_temperature = setpoint
+    enqueue_command(room_number, "POWER_ON")
+    enqueue_command(room_number, f"SET_TEMP_{int(round(setpoint))}")
+    status.ac_state = "on"
+    return setpoint
+
+
+def should_buzz(settings: ACSettings, door_state: str) -> bool:
+    return bool(settings.buzz_on_open and door_state == "opened")
+
+
 def process_heartbeat(
     room_number: str,
-    window_state: str,
-    ac_state: str,
-    temperature_c: float,
+    window_state: str = "closed",
+    ac_state: str = "off",
+    temperature_c: float = 22.0,
+    door_state: str | None = None,
+    ir_event: str | None = None,
 ) -> dict:
-    window_state = window_state.lower()
+    window_state = (window_state or "closed").lower()
+    door_state = (door_state or "closed").lower()
     ac_state = ac_state.lower()
     if window_state not in {"opened", "closed"}:
         raise ValueError("window_state must be opened or closed")
+    if door_state not in {"opened", "closed"}:
+        raise ValueError("door_state must be opened or closed")
     if ac_state not in {"on", "off"}:
         raise ValueError("ac_state must be on or off")
 
     policy = get_or_create_policy()
     settings = get_or_create_settings(room_number)
     status = get_or_create_status(room_number)
+    if status.set_temperature is None:
+        status.set_temperature = settings.min_temperature or 20.0
 
     is_compliant, issue = assess_temperature(temperature_c, policy)
-    if window_state == "opened" and ac_state == "on":
+    if door_state == "opened" and ac_state == "on":
         is_compliant = False
-        issue = "Window open with AC running"
+        issue = "Door open with AC running"
 
     event = WindowEvent(
         room_number=room_number,
         window_state=window_state,
+        door_state=door_state,
         ac_state=ac_state,
         temperature=temperature_c,
         policy_compliant=is_compliant,
@@ -96,17 +133,55 @@ def process_heartbeat(
 
     status.current_temperature = temperature_c
     status.window_state = window_state
+    status.door_state = door_state
     status.ac_state = ac_state
     status.last_updated = utc_now()
 
-    if window_state == "closed":
+    if ir_event:
+        verdict = evaluate_remote_command(
+            settings=settings,
+            command=ir_event,
+            door_state=door_state,
+            ac_state=ac_state,
+            temperature=temperature_c,
+            set_temperature=status.set_temperature,
+            policy=policy,
+        )
+        if verdict.get("allowed"):
+            cmd = ir_event.upper()
+            if cmd in {"POWER", "POWER_ON"}:
+                queue_resume_ac(room_number, status, settings, policy)
+            elif cmd == "POWER_OFF":
+                enqueue_command(room_number, "POWER_OFF")
+                status.ac_state = "off"
+            elif cmd in {"TEMP_UP", "TEMP_DOWN"}:
+                new_temp = verdict.get("set_temperature_c")
+                if new_temp is not None:
+                    status.set_temperature = float(new_temp)
+                    enqueue_command(room_number, f"SET_TEMP_{int(round(float(new_temp)))}")
+            elif cmd.startswith("SET_TEMP_"):
+                try:
+                    value = float(cmd.split("_")[-1])
+                    status.set_temperature = clamp_setpoint_c(
+                        value, policy, settings.min_temperature
+                    )
+                    enqueue_command(
+                        room_number,
+                        f"SET_TEMP_{int(round(status.set_temperature))}",
+                    )
+                except ValueError:
+                    pass
+        elif verdict.get("alternative_action", "").startswith("SET_TEMP_"):
+            enqueue_command(room_number, verdict["alternative_action"])
+
+    if door_state == "closed":
         cancel_pending(room_number)
         status.has_pending_event = False
         status.pending_event_time = None
-        if ac_state == "off" and settings.auto_shutoff:
-            enqueue_command(room_number, "POWER_ON")
-            status.ac_state = "on"
-    elif window_state == "opened" and ac_state == "on" and settings.auto_shutoff:
+        night_off = in_scheduled_shutoff(policy) and not settings.schedule_override
+        if status.ac_state == "off" and settings.auto_shutoff and not night_off:
+            queue_resume_ac(room_number, status, settings, policy)
+    elif door_state == "opened" and status.ac_state == "on" and settings.auto_shutoff:
         delay = max(0, int(settings.shutoff_delay or 0))
         if delay == 0:
             enqueue_command(room_number, "POWER_OFF")
@@ -115,21 +190,29 @@ def process_heartbeat(
             status.pending_event_time = None
             user = User.query.filter_by(room_number=room_number).first()
             if user and settings.email_notifications:
-                send_window_alert(user.email, room_number)
+                send_door_alert(user.email, room_number)
         else:
-            scheduled = utc_now() + timedelta(seconds=delay)
-            pending = PendingWindowEvent(
-                room_number=room_number,
-                window_state=window_state,
-                ac_state=ac_state,
-                temperature=temperature_c,
-                scheduled_action_time=scheduled,
-                processed=False,
-                event_type="window_open",
-            )
-            db.session.add(pending)
-            status.has_pending_event = True
-            status.pending_event_time = scheduled
+            existing = PendingWindowEvent.query.filter_by(
+                room_number=room_number, processed=False, event_type="door_open"
+            ).first()
+            if existing:
+                status.has_pending_event = True
+                status.pending_event_time = existing.scheduled_action_time
+            else:
+                scheduled = utc_now() + timedelta(seconds=delay)
+                pending = PendingWindowEvent(
+                    room_number=room_number,
+                    window_state=window_state,
+                    door_state=door_state,
+                    ac_state=ac_state,
+                    temperature=temperature_c,
+                    scheduled_action_time=scheduled,
+                    processed=False,
+                    event_type="door_open",
+                )
+                db.session.add(pending)
+                status.has_pending_event = True
+                status.pending_event_time = scheduled
 
     if in_scheduled_shutoff(policy) and not settings.schedule_override and status.ac_state == "on":
         enqueue_command(room_number, "POWER_OFF")
@@ -149,6 +232,7 @@ def process_heartbeat(
             status.non_compliant_since = None
             status.policy_violation_type = None
 
+    buzz = should_buzz(settings, door_state)
     commands = pop_commands(room_number)
     db.session.commit()
 
@@ -156,7 +240,10 @@ def process_heartbeat(
         "success": True,
         "commands": commands,
         "ac_state": status.ac_state,
+        "door_state": status.door_state,
         "window_state": status.window_state,
+        "set_temperature_c": status.set_temperature,
+        "buzz": buzz,
         "has_pending_event": status.has_pending_event,
         "pending_event_time": status.pending_event_time.isoformat()
         if status.pending_event_time
@@ -188,6 +275,7 @@ def process_due_pending_events() -> int:
             event = WindowEvent(
                 room_number=pending.room_number,
                 window_state=pending.window_state or status.window_state,
+                door_state=pending.door_state or status.door_state,
                 ac_state="off",
                 temperature=pending.temperature,
                 policy_compliant=False,
@@ -197,7 +285,7 @@ def process_due_pending_events() -> int:
             settings = ACSettings.query.filter_by(room_number=pending.room_number).first()
             user = User.query.filter_by(room_number=pending.room_number).first()
             if user and settings and settings.email_notifications:
-                send_window_alert(user.email, pending.room_number)
+                send_door_alert(user.email, pending.room_number)
             db.session.commit()
             count += 1
         except Exception:
@@ -251,13 +339,13 @@ def update_compliance_metrics() -> None:
         if not settings:
             continue
         try:
-            window_open_events = WindowEvent.query.filter(
+            door_open_events = WindowEvent.query.filter(
                 WindowEvent.room_number == room.room_number,
                 WindowEvent.timestamp >= one_day_ago,
-                WindowEvent.window_state == "opened",
+                WindowEvent.door_state == "opened",
                 WindowEvent.ac_state == "on",
             ).all()
-            window_open_minutes = len(window_open_events)
+            door_open_minutes = len(door_open_events)
             temp_events = WindowEvent.query.filter(
                 WindowEvent.room_number == room.room_number,
                 WindowEvent.timestamp >= one_day_ago,
@@ -275,9 +363,9 @@ def update_compliance_metrics() -> None:
             else:
                 avg_deviation = 0.0
             score = 100.0
-            score -= min(50, window_open_minutes * 0.5)
+            score -= min(50, door_open_minutes * 0.5)
             score -= min(50, avg_deviation * 10)
-            settings.window_open_minutes = window_open_minutes
+            settings.window_open_minutes = door_open_minutes
             settings.temperature_deviation = avg_deviation
             settings.compliance_score = max(0.0, score)
             db.session.commit()

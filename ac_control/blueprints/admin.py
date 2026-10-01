@@ -10,6 +10,7 @@ from io import StringIO
 from flask import (
     Blueprint,
     Response,
+    current_app,
     flash,
     jsonify,
     redirect,
@@ -22,6 +23,12 @@ from flask_login import current_user, login_required
 from ac_control.blueprints.rooms import _room_context
 from ac_control.extensions import db
 from ac_control.models import ACSettings, GlobalPolicy, RoomStatus, User, WindowEvent
+from ac_control.services.devices import (
+    claim_pending_device,
+    normalize_mac,
+    pending_unassigned,
+    upsert_pending,
+)
 from ac_control.services.ingest import get_or_create_policy, get_or_create_settings, get_or_create_status
 from ac_control.services.mailer import send_email
 from ac_control.temperature import celsius_to_fahrenheit, fahrenheit_to_celsius
@@ -46,7 +53,35 @@ def admin_required(fn):
 def dashboard():
     rooms = User.query.filter_by(is_admin=False).order_by(User.room_number).all()
     statuses = {row.room_number: row for row in RoomStatus.query.all()}
-    return render_template("admin_dashboard.html", rooms=rooms, room_statuses=statuses)
+    sim = {}
+    sim_actions = ()
+    if current_app.config.get("SIMULATION_MODE"):
+        from ac_control.services.simulation import ACTIONS, public_state
+
+        sim = public_state()
+        sim_actions = ACTIONS
+    return render_template(
+        "admin_dashboard.html",
+        rooms=rooms,
+        room_statuses=statuses,
+        sim=sim,
+        sim_actions=sim_actions,
+    )
+
+
+@admin_bp.post("/simulation/<room_number>/<action>")
+@login_required
+@admin_required
+def simulation_action(room_number, action):
+    from ac_control.services.simulation import apply_action
+
+    try:
+        view = apply_action(room_number, action)
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("admin.dashboard"))
+    flash(f"Room {room_number}: {view.get('reaction', 'updated')}", "info")
+    return redirect(url_for("admin.dashboard"))
 
 
 @admin_bp.route("/rooms/<room_number>")
@@ -164,7 +199,7 @@ def users():
             db.session.add(user)
             db.session.flush()
             db.session.add(settings)
-            db.session.add(RoomStatus(room_number=room_number))
+            db.session.add(RoomStatus(room_number=room_number, set_temperature=settings.min_temperature))
             db.session.commit()
             new_device_key = raw_key
             new_room = room_number
@@ -178,6 +213,7 @@ def users():
         rooms=rooms,
         new_device_key=new_device_key,
         new_room=new_room,
+        pending_devices=pending_unassigned(),
     )
 
 
@@ -189,6 +225,10 @@ def rotate_key(room_number):
     get_or_create_status(room_number)
     raw_key = ACSettings.generate_device_key()
     settings.set_device_key(raw_key)
+    if settings.device_mac:
+        pending = upsert_pending(settings.device_mac)
+        pending.assigned_room = room_number
+        pending.issued_api_key = raw_key
     db.session.commit()
     rooms = User.query.filter_by(is_admin=False).order_by(User.room_number).all()
     flash(f"New device key for room {room_number}. Copy it now.", "success")
@@ -197,6 +237,33 @@ def rotate_key(room_number):
         rooms=rooms,
         new_device_key=raw_key,
         new_room=room_number,
+        pending_devices=pending_unassigned(),
+    )
+
+
+@admin_bp.route("/devices/assign", methods=["POST"])
+@login_required
+@admin_required
+def assign_device():
+    mac = normalize_mac(request.form.get("mac"))
+    room_number = (request.form.get("room_number") or "").strip()
+    if not mac or not room_number:
+        flash("MAC and room number are required.", "error")
+        return redirect(url_for("admin.users"))
+    try:
+        raw_key = claim_pending_device(mac, room_number)
+        db.session.commit()
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("admin.users"))
+    rooms = User.query.filter_by(is_admin=False).order_by(User.room_number).all()
+    flash(f"Bound {mac} to room {room_number}. The ESP32 will pick up the key on enroll.", "success")
+    return render_template(
+        "users.html",
+        rooms=rooms,
+        new_device_key=raw_key,
+        new_room=room_number,
+        pending_devices=pending_unassigned(),
     )
 
 
@@ -245,6 +312,7 @@ def export_events():
             "ID",
             "Room",
             "Timestamp",
+            "Door State",
             "Window State",
             "AC State",
             "Temperature (F)",
@@ -259,6 +327,7 @@ def export_events():
                 event.id,
                 event.room_number,
                 event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                event.door_state,
                 event.window_state,
                 event.ac_state,
                 f"{temp_f:.1f}" if temp_f is not None else "",
@@ -308,7 +377,11 @@ def _filtered_events(selected_room, event_type, date_from, date_to):
     query = WindowEvent.query
     if selected_room != "all":
         query = query.filter_by(room_number=selected_room)
-    if event_type == "window_opened":
+    if event_type == "door_opened":
+        query = query.filter_by(door_state="opened")
+    elif event_type == "door_closed":
+        query = query.filter_by(door_state="closed")
+    elif event_type == "window_opened":
         query = query.filter_by(window_state="opened")
     elif event_type == "window_closed":
         query = query.filter_by(window_state="closed")

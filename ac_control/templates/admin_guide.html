@@ -7,15 +7,16 @@
         <a href="{{ url_for('admin.dashboard') }}" class="btn btn-primary">Dashboard</a>
     </div>
     <div class="card-body">
-        <p>You manage rooms, temperature policy, and per-room device API keys. Classroom Pis authenticate with <code>X-API-Key</code>; the public ngrok URL must not be treated as a secret.</p>
+        <p>You manage rooms, temperature policy, and ESP32 device keys. Classroom boards authenticate with <code>X-API-Key</code>. MAC addresses identify hardware; they are not a secret.</p>
         <ul>
-            <li>Create rooms under <strong>Users</strong>. Copy the device key onto that room's Pi immediately.</li>
+            <li>Create rooms under <strong>Users</strong>. Assign an unassigned ESP32 MAC, or copy a device key into WiFiManager.</li>
+            <li>ESP32s must use the Pi’s <strong>LAN IP</strong> as <code>SERVER_URL</code>, even if admins reach the dashboard through a school subdomain.</li>
+            <li>A physical remote “ON” restores that room’s last setpoint. Change the setpoint on the room page.</li>
+            <li>Door open can auto-shutoff, buzz, or both. Window reeds can be added later on the same board.</li>
             <li>Policy temperatures are entered in °F and stored as °C.</li>
             <li>Scheduled shutoff uses [shutoff time, startup time] wrapping midnight (e.g. 22:00–07:00).</li>
-            <li>Conservation mode raises the effective minimum cooling floor.</li>
-            <li>Open a room from the dashboard to lock settings or exempt it from the night shutoff.</li>
         </ul>
-        <p>Install, ngrok, and hardware details are in the project README.</p>
+        <p>Install, reverse proxy, and wiring details are in the project README.</p>
     </div>
 </div>
 {% endblock %}

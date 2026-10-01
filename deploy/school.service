@@ -1,0 +1,17 @@
+[Unit]
+Description=AC Control Center (central school Pi)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=accontrol
+Group=accontrol
+WorkingDirectory=/opt/ac-control
+EnvironmentFile=/etc/ac-control.env
+ExecStart=/opt/ac-control/.venv/bin/gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 8 --timeout 60 wsgi:app
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

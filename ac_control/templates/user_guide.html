@@ -4,7 +4,7 @@
 <div class="card mb-4">
     <div class="card-header"><h2 class="h4 mb-0">User Guide</h2></div>
     <div class="card-body">
-        <p>AC Control Center turns classroom window sensors and IR blasters into a school-wide energy policy. A Raspberry Pi in each room reports temperature and window state; a central Pi decides when the AC may run.</p>
+        <p>AC Control Center turns classroom door sensors and IR blasters into a school-wide energy policy. An ESP32 in each room reports state; a central Raspberry Pi decides when the AC may run.</p>
         <h5>Accounts</h5>
         <ul>
             <li><strong>Room accounts</strong> log in with username/password or room number + PIN.</li>
@@ -13,9 +13,10 @@
         <h5>Room dashboard</h5>
         <ul>
             <li>Temperatures are stored in Celsius and shown in Fahrenheit.</li>
-            <li>Auto-shutoff queues a <code>POWER_OFF</code> for your room Pi when a window stays open.</li>
-            <li>Force ON/OFF buttons queue commands; they run on the next Pi heartbeat.</li>
-            <li>A <em>stale</em> badge means the classroom Pi has not checked in recently.</li>
+            <li><strong>Setpoint</strong> is the last temperature sent to the AC. Turning the unit on (remote or dashboard) uses that value.</li>
+            <li>Auto-shutoff queues a <code>POWER_OFF</code> when the door stays open. Buzz can remind the room until the door closes.</li>
+            <li>Force ON/OFF buttons queue commands; they run on the next ESP32 heartbeat.</li>
+            <li>A <em>stale</em> badge means the classroom ESP32 has not checked in recently.</li>
         </ul>
         <p><a class="btn btn-primary" href="{{ url_for('auth.index') }}">Back</a></p>
     </div>

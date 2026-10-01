@@ -2,13 +2,28 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import current_user, login_required
 
 from ac_control.extensions import db
-from ac_control.models import ACSettings, GlobalPolicy, RoomStatus, WindowEvent
 from ac_control.services.commands import enqueue_command
-from ac_control.services.ingest import get_or_create_settings, get_or_create_status, process_heartbeat
+from ac_control.services.ingest import (
+    get_or_create_settings,
+    get_or_create_status,
+    process_heartbeat,
+    queue_resume_ac,
+)
+from ac_control.services.policy import clamp_setpoint_c
+from ac_control.models import ACSettings, GlobalPolicy, RoomStatus, WindowEvent
 from ac_control.temperature import celsius_to_fahrenheit, fahrenheit_to_celsius
 
 rooms_bp = Blueprint("rooms", __name__)
@@ -40,8 +55,11 @@ def _room_context(room_number: str):
         "policy_active": bool(policy and policy.policy_active),
         "current_temp": status.current_temperature,
         "current_temp_f": celsius_to_fahrenheit(status.current_temperature),
+        "set_temp": status.set_temperature,
+        "set_temp_f": celsius_to_fahrenheit(status.set_temperature),
         "is_admin_view": current_user.is_admin,
         "stale": status.is_stale(),
+        "device_mac": settings.device_mac,
     }
 
 
@@ -79,11 +97,28 @@ def update_settings(room_number):
             pass
 
     settings.auto_shutoff = "auto_shutoff" in request.form
+    settings.buzz_on_open = "buzz_on_open" in request.form
     try:
         delay = int(request.form.get("shutoff_delay", settings.shutoff_delay))
         settings.shutoff_delay = max(0, min(300, delay))
     except (TypeError, ValueError):
         pass
+    if "set_temperature" in request.form:
+        try:
+            setpoint_f = float(request.form["set_temperature"])
+            converted = fahrenheit_to_celsius(setpoint_f)
+            if converted is not None:
+                policy = GlobalPolicy.query.first()
+                status = get_or_create_status(room_number)
+                status.set_temperature = clamp_setpoint_c(
+                    converted, policy, settings.min_temperature
+                )
+                enqueue_command(
+                    room_number,
+                    f"SET_TEMP_{int(round(status.set_temperature))}",
+                )
+        except (TypeError, ValueError):
+            pass
     settings.email_notifications = "email_notifications" in request.form
     if is_admin:
         settings.force_on_enabled = "force_on_enabled" in request.form
@@ -110,10 +145,14 @@ def force_ac_state(room_number, state):
         return _after_room_change(room_number)
 
     command = "POWER_ON" if state == "on" else "POWER_OFF"
-    enqueue_command(room_number, command)
-    status.ac_state = state
+    if state == "on":
+        policy = GlobalPolicy.query.first()
+        queue_resume_ac(room_number, status, settings, policy)
+    else:
+        enqueue_command(room_number, "POWER_OFF")
+        status.ac_state = "off"
     db.session.commit()
-    flash(f"Queued AC {state.upper()} for the classroom Pi.", "success")
+    flash(f"Queued AC {state.upper()} for the classroom ESP32.", "success")
     return _after_room_change(room_number)
 
 
@@ -134,6 +173,7 @@ def test_interface():
             process_heartbeat(
                 room_number=room_number,
                 window_state=request.form.get("window_state", "closed"),
+                door_state=request.form.get("door_state", "closed"),
                 ac_state=request.form.get("ac_state", "off"),
                 temperature_c=float(temperature_c),
             )
@@ -195,6 +235,7 @@ def recent_events_api(room_number):
                     "id": event.id,
                     "timestamp": event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                     "window_state": event.window_state,
+                    "door_state": event.door_state,
                     "ac_state": event.ac_state,
                     "temperature": event.temperature,
                     "temperature_f": celsius_to_fahrenheit(event.temperature),
@@ -224,16 +265,21 @@ def temperature_api(room_number):
 
 
 def _status_json(status: RoomStatus, settings: ACSettings) -> dict:
-    return {
+    payload = {
         "min_temperature": settings.min_temperature,
         "min_temperature_f": celsius_to_fahrenheit(settings.min_temperature),
         "auto_shutoff": settings.auto_shutoff,
+        "buzz_on_open": settings.buzz_on_open,
         "email_notifications": settings.email_notifications,
         "window_state": status.window_state,
+        "door_state": status.door_state,
         "ac_state": status.ac_state,
         "temperature": status.current_temperature,
         "temperature_f": celsius_to_fahrenheit(status.current_temperature),
+        "set_temperature": status.set_temperature,
+        "set_temperature_f": celsius_to_fahrenheit(status.set_temperature),
         "unit": "F",
+        "device_mac": settings.device_mac,
         "has_pending_event": status.has_pending_event,
         "pending_event_time": status.pending_event_time.isoformat()
         if status.pending_event_time
@@ -244,7 +290,13 @@ def _status_json(status: RoomStatus, settings: ACSettings) -> dict:
         "policy_violation_type": status.policy_violation_type,
         "stale": status.is_stale(),
         "last_updated": status.last_updated.isoformat() if status.last_updated else None,
+        "buzz": bool(settings.buzz_on_open and status.door_state == "opened"),
     }
+    if current_app.config.get("SIMULATION_MODE"):
+        from ac_control.services.simulation import room_view
+
+        payload["simulation"] = room_view(status.room_number)
+    return payload
 
 
 def _after_room_change(room_number: str):

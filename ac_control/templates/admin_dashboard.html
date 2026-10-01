@@ -1,6 +1,31 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% if simulation_mode %}
+<div class="card mb-3">
+    <div class="card-header"><h4 class="mb-0">Classroom simulation</h4></div>
+    <div class="card-body">
+        <p class="mb-3">Buttons do what a door sensor, window reed, or IR remote would do. The line under each room is the Pi's last reaction. Scripts keep running until you press a button; <strong>Resume script</strong> hands the room back.</p>
+        {% for room_number, info in sim.items() %}
+        <div class="mb-3">
+            <div>
+                <strong>Room {{ room_number }} · {{ info.label }}</strong>
+                {% if info.manual %}<span class="badge bg-warning">manual</span>{% endif %}
+                {% if not info.connected %}<span class="badge bg-danger">offline</span>{% endif %}
+            </div>
+            <div class="text-muted small mb-1">{{ info.blurb }}</div>
+            <div class="d-flex flex-wrap gap-1">
+                {% for action, label in sim_actions %}
+                <form method="post" action="{{ url_for('admin.simulation_action', room_number=room_number, action=action) }}">
+                    <button class="btn btn-sm btn-outline-light" type="submit">{{ label }}</button>
+                </form>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
 <div id="admin-dashboard" class="row">
     <div class="col-12">
         <div class="card">
@@ -32,15 +57,22 @@
                             {% set settings = room.acsettings %}
                             {% set status = room_statuses.get(room.room_number) %}
                             <tr class="room-card" data-room-id="{{ room.room_number }}">
-                                <td>{{ room.room_number }}</td>
+                                <td>
+                                    {{ room.room_number }}
+                                    {% if simulation_mode %}
+                                    <div class="small text-muted" id="react-{{ room.room_number }}">{{ (sim.get(room.room_number) or {}).get('reaction', '') }}</div>
+                                    {% endif %}
+                                </td>
                                 <td id="temp-{{ room.room_number }}" class="room-temperature">
                                     {% if status %}{{ status.current_temperature | temp_f }}{% else %}—{% endif %}
                                 </td>
                                 <td>{% if settings %}{{ settings.min_temperature | temp_f }}{% endif %}</td>
                                 <td>{{ 'Yes' if settings and settings.auto_shutoff else 'No' }}</td>
                                 <td id="status-{{ room.room_number }}" class="room-status">
-                                    {% if status and status.window_state == 'opened' and status.ac_state == 'on' %}
-                                        <span class="badge bg-warning">Window Open &amp; AC On</span>
+                                    {% if status and status.door_state == 'opened' and status.ac_state == 'on' %}
+                                        <span class="badge bg-warning">Door Open &amp; AC On</span>
+                                    {% elif status and status.door_state == 'opened' %}
+                                        <span class="badge bg-info">Door Open</span>
                                     {% elif status and status.ac_state == 'on' %}
                                         <span class="badge bg-primary">AC On</span>
                                     {% elif status %}
@@ -49,7 +81,7 @@
                                         <span class="badge bg-secondary">No data</span>
                                     {% endif %}
                                 </td>
-                                <td>
+                                <td id="beat-{{ room.room_number }}">
                                     {% if status and status.is_stale() %}
                                         <span class="badge bg-danger">Stale</span>
                                     {% elif status %}

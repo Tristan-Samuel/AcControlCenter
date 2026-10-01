@@ -24,6 +24,8 @@
                 <label for="event-type">Event Type</label>
                 <select id="event-type" class="form-select">
                     <option value="all" {% if event_type == 'all' %}selected{% endif %}>All Events</option>
+                    <option value="door_opened" {% if event_type == 'door_opened' %}selected{% endif %}>Door Opened</option>
+                    <option value="door_closed" {% if event_type == 'door_closed' %}selected{% endif %}>Door Closed</option>
                     <option value="window_opened" {% if event_type == 'window_opened' %}selected{% endif %}>Window Opened</option>
                     <option value="window_closed" {% if event_type == 'window_closed' %}selected{% endif %}>Window Closed</option>
                     <option value="ac_on" {% if event_type == 'ac_on' %}selected{% endif %}>AC On</option>
@@ -46,7 +48,7 @@
         <table class="table table-striped">
             <thead>
                 <tr>
-                    <th>ID</th><th>Room</th><th>Timestamp</th><th>Window</th><th>AC</th><th>Temp</th><th>Compliant</th><th>Issue</th>
+                    <th>ID</th><th>Room</th><th>Timestamp</th><th>Door</th><th>Window</th><th>AC</th><th>Temp</th><th>Compliant</th><th>Issue</th>
                 </tr>
             </thead>
             <tbody>
@@ -55,6 +57,7 @@
                     <td>{{ event.id }}</td>
                     <td>{{ event.room_number }}</td>
                     <td>{{ event.timestamp }}</td>
+                    <td>{{ event.door_state }}</td>
                     <td>{{ event.window_state }}</td>
                     <td>{{ event.ac_state }}</td>
                     <td>{{ event.temperature | temp_f }}</td>

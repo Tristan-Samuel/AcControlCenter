@@ -1,5 +1,8 @@
+# Deprecated: classroom hardware is now an ESP32 (see firmware/ac_node).
+# This unit file remains only for the optional Python LAN simulator.
+
 [Unit]
-Description=AC Control Center classroom client
+Description=AC Control Center classroom simulator (optional)
 After=network-online.target
 Wants=network-online.target
 
