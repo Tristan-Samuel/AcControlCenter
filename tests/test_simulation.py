@@ -8,6 +8,7 @@ from ac_control.extensions import db
 from ac_control.models import ACSettings, PendingDevice, RoomStatus, User, utc_now
 from ac_control.services.simulation import (
     UNASSIGNED_MAC,
+    _login_path,
     apply_action,
     ensure_demo,
     reset_for_tests,
@@ -93,6 +94,57 @@ def test_disconnect_marks_room_stale(app) -> None:
         assert view["connected"] is False
         status = RoomStatus.query.filter_by(room_number="101").one()
         assert status.is_stale(app.config["STALE_AFTER_SECONDS"])
+        reset_for_tests()
+
+
+def test_login_file_is_the_demo_password(app) -> None:
+    _enable(app)
+    with app.app_context():
+        reset_for_tests()
+        path = _login_path()
+        path.write_text("username: demo\npassword: test\n", encoding="utf-8")
+        ensure_demo()
+        admin = User.query.filter_by(username="demo").one()
+        assert admin.check_password("test")
+        assert "password: test" in path.read_text(encoding="utf-8")
+        reset_for_tests()
+
+
+def test_plain_login_file_sets_demo_password(app) -> None:
+    _enable(app)
+    with app.app_context():
+        reset_for_tests()
+        _login_path().write_text("demo\ntest\n", encoding="utf-8")
+        ensure_demo()
+        assert User.query.filter_by(username="demo").one().check_password("test")
+        reset_for_tests()
+
+
+def test_editing_login_file_replaces_the_stored_password(app) -> None:
+    _enable(app)
+    with app.app_context():
+        reset_for_tests()
+        ensure_demo()
+        assert User.query.filter_by(username="demo").one().check_password("demo-pass")
+        path = _login_path()
+        path.write_text("username: demo\npassword: test\n", encoding="utf-8")
+        ensure_demo()
+        admin = User.query.filter_by(username="demo").one()
+        assert admin.check_password("test")
+        assert admin.check_password("demo-pass") is False
+        reset_for_tests()
+
+
+def test_sign_in_uses_the_login_file(app, client) -> None:
+    _enable(app)
+    with app.app_context():
+        reset_for_tests()
+        _login_path().write_text("username: demo\npassword: test\n", encoding="utf-8")
+    refused = client.post("/login", data={"username": "demo", "password": "demo-pass"})
+    assert refused.status_code == 200
+    response = client.post("/login", data={"username": "demo", "password": "test"})
+    assert response.status_code == 302
+    with app.app_context():
         reset_for_tests()
 
 

@@ -68,6 +68,8 @@ class SimNode:
 
 
 _NODES: dict[str, SimNode] = {}
+# (path, mtime_ns) of the login file already applied. Avoids hashing on every tick.
+_LOGIN_SEEN: tuple[str, int] | None = None
 
 _DEMO = (
     {
@@ -143,29 +145,102 @@ def _write_login(password: str) -> None:
     path.write_text(
         "username: demo\n"
         f"password: {password}\n"
-        "This file is on the machine that runs the app. The website does not show the password.\n",
+        "Edit the password line, then sign in again. The app reads this file.\n",
         encoding="utf-8",
     )
     path.chmod(0o600)
 
 
+def _read_login(path: Path) -> tuple[str, str] | None:
+    """Username and password from simulation-login.txt.
+
+    Accepts ``username:`` / ``password:`` lines, or two plain lines (username then password).
+    """
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        logger.warning("Could not read simulation login file %s", path)
+        return None
+    username = ""
+    password = ""
+    plain: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        lower = stripped.lower()
+        if lower.startswith("username:"):
+            username = stripped.split(":", 1)[1].strip()
+        elif lower.startswith("password:"):
+            password = stripped.split(":", 1)[1].strip()
+        elif ":" not in stripped:
+            plain.append(stripped)
+    if username and password:
+        return username, password
+    if not username and not password and len(plain) >= 2:
+        return plain[0], plain[1]
+    return None
+
+
+def _demo_admin() -> User | None:
+    by_email = User.query.filter_by(email="demo@localhost").first()
+    if by_email is not None:
+        return by_email
+    return User.query.filter_by(username="demo").first()
+
+
+def _apply_login(username: str, password: str) -> None:
+    """Point the simulation admin at the username and password from the login file."""
+    user = _demo_admin()
+    if user is None:
+        if User.query.filter_by(username=username).first():
+            logger.warning("Username %s already exists; not creating the simulation admin", username)
+            return
+        user = User(username=username, email="demo@localhost", is_admin=True, room_number=None)
+        db.session.add(user)
+    elif user.username != username:
+        taken = User.query.filter(User.username == username, User.id != user.id).first()
+        if taken:
+            logger.warning("Simulation login username %s is already taken", username)
+        else:
+            user.username = username
+    user.is_admin = True
+    if not user.check_password(password):
+        user.set_password(password)
+        logger.info("Updated simulation admin login from %s", _login_path())
+
+
 def _sync_admin() -> None:
-    password = (current_app.config.get("SIMULATION_ADMIN_PASSWORD") or "").strip()
+    """Create the demo admin, or copy simulation-login.txt onto that account.
+
+    The file is the password source once it exists. Editing it and signing in
+    again changes the login. ``SIMULATION_ADMIN_PASSWORD`` is only the initial
+    password when the file is missing.
+    """
+    global _LOGIN_SEEN
     path = _login_path()
-    user = User.query.filter_by(username="demo").first()
-    if user is not None and path.is_file():
+    if path.is_file():
+        seen = (str(path.resolve()), path.stat().st_mtime_ns)
+        if seen == _LOGIN_SEEN:
+            return
+        parsed = _read_login(path)
+        if parsed is None:
+            logger.warning(
+                "No username and password in %s; demo login was left unchanged",
+                path,
+            )
+            _LOGIN_SEEN = seen
+            return
+        _apply_login(*parsed)
+        _LOGIN_SEEN = seen
         return
+
+    password = (current_app.config.get("SIMULATION_ADMIN_PASSWORD") or "").strip()
     if not password:
         password = secrets.token_urlsafe(12)
-    if user is None:
-        if User.query.filter_by(email="demo@localhost").first():
-            logger.warning("demo@localhost already exists; not creating the simulation admin")
-            return
-        user = User(username="demo", email="demo@localhost", is_admin=True, room_number=None)
-        db.session.add(user)
-    user.is_admin = True
-    user.set_password(password)
+    _apply_login("demo", password)
     _write_login(password)
+    _LOGIN_SEEN = (str(path.resolve()), path.stat().st_mtime_ns)
 
 
 def _seed_room(spec: dict) -> None:
@@ -444,6 +519,11 @@ def public_state() -> dict[str, dict]:
 
 
 def reset_for_tests() -> None:
-    """Drop in-memory nodes. Tests only."""
+    """Drop in-memory nodes and the login-file cache. Tests only."""
+    global _LOGIN_SEEN
     with _LOCK:
         _NODES.clear()
+        _LOGIN_SEEN = None
+        path = _login_path()
+        if path.is_file():
+            path.unlink()

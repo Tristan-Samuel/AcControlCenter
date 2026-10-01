@@ -172,7 +172,7 @@ If the server is unreachable, the node **fails closed** (does not honor a local 
 
 Set `SIMULATION_MODE=true` and the server itself pretends to be four classroom nodes. Heartbeats go through `process_heartbeat`, so door shutoff, the buzzer, temperature lockout, and remote allow/deny are the real policy code. The admin dashboard has buttons (open door, remote ON, node offline) and a line that says what the Pi just queued.
 
-On the home Pi this is the default install. See `vps-stack` `PI.md` section 22. Log in as `demo`. The password is in `simulation-login.txt` next to the database (`/var/lib/ac-control/simulation-login.txt` on the Pi).
+On the home Pi this is the default install. See `vps-stack` `PI.md` section 22. Log in as `demo`. The password is the `password:` line in `simulation-login.txt` next to the database (`/var/lib/ac-control/simulation-login.txt` on the Pi). The app reads that file when you sign in, so editing the line changes the login.
 
 ```bash
 export SIMULATION_MODE=true

@@ -18,6 +18,10 @@ def login():
         return redirect(url_for("auth.index"))
 
     if request.method == "POST":
+        if current_app.config.get("SIMULATION_MODE"):
+            from ac_control.services.simulation import ensure_demo
+
+            ensure_demo()
         login_type = request.form.get("login_type", "password")
         user = None
         valid = False
